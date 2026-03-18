@@ -426,13 +426,13 @@ export default function App() {
                   <div className="col-span-full p-12 bg-white/5 border border-white/10 rounded-[2rem] text-center">
                     <p className="text-zinc-500">لا توجد مواد دراسية مضافة حالياً. اطلب من المطور إضافتها عبر البوت.</p>
                   </div>
-                ) : subjects.map(subject => {
+                ) : subjects.map((subject, sIdx) => {
                   const progress = userProgress[subject.id] || { completedUnits: [], studyHours: {} };
                   const percent = Math.round((progress.completedUnits.length / subject.units.length) * 100) || 0;
                   
                   return (
                     <motion.div 
-                      key={subject.id}
+                      key={`subject-${subject.id}-${sIdx}`}
                       className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-xl"
                     >
                       <div className="flex justify-between items-center mb-6">
@@ -487,8 +487,10 @@ export default function App() {
             </motion.div>
           ) : exams.length === 0 ? (
             <motion.div 
+              key="no-exams-state"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               className="text-center text-white"
             >
               <h1 className="text-4xl font-bold mb-4">لا توجد امتحانات مجدولة</h1>
@@ -496,7 +498,7 @@ export default function App() {
             </motion.div>
           ) : viewMode === 'single' ? (
             <motion.div 
-              key={currentExam.id}
+              key={`single-${currentExam.id}-${currentIndex}`}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
@@ -578,10 +580,10 @@ export default function App() {
               )}
             </motion.div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div key="exams-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {exams.map((exam, idx) => (
                 <motion.div 
-                  key={exam.id}
+                  key={`grid-exam-${exam.id}-${idx}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
