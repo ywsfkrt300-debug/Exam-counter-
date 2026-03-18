@@ -100,13 +100,12 @@ export default function App() {
   const [presenceData, setPresenceData] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [userProgress, setUserProgress] = useState<{ [key: string]: UserProgress }>({});
-  const [sessionId, setSessionId] = useState('');
+  const [sessionId, setSessionId] = useState(localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
 
   useEffect(() => {
     // Session ID for presence
-    const sId = localStorage.getItem('sessionId') || Math.random().toString(36).substring(7);
+    const sId = sessionId;
     localStorage.setItem('sessionId', sId);
-    setSessionId(sId);
     const presenceRef = doc(db, 'presence', sId);
 
     const updatePresence = async () => {
@@ -124,7 +123,7 @@ export default function App() {
         }
 
         await setDoc(presenceRef, { 
-          id: sessionId, 
+          id: sId, 
           lastSeen: serverTimestamp(),
           ip,
           governorate
@@ -201,7 +200,6 @@ export default function App() {
     });
 
     return () => {
-      cleanup();
       window.removeEventListener('beforeunload', cleanup);
       unsubscribeExams();
       unsubscribeSettings();
@@ -209,6 +207,7 @@ export default function App() {
       unsubscribePresence();
       unsubscribeSubjects();
       unsubscribeProgress();
+      cleanup();
     };
   }, []);
 
@@ -444,12 +443,12 @@ export default function App() {
                       </div>
                       
                       <div className="space-y-4">
-                        {subject.units.map(unit => {
+                        {subject.units.map((unit, uIdx) => {
                           const isDone = progress.completedUnits.includes(unit);
                           const hours = progress.studyHours[unit] || 0;
                           
                           return (
-                            <div key={unit} className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                            <div key={`${subject.id}-${unit}-${uIdx}`} className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <button 
