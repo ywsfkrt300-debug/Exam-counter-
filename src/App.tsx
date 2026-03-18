@@ -615,12 +615,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  if (isAdminMode) {
-    return <AdminDashboard onExit={() => {
-      window.history.pushState({}, '', '/');
-      setIsAdminMode(false);
-    }} />;
-  }
   const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>('home');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [userCount, setUserCount] = useState(0);
@@ -861,6 +855,13 @@ export default function App() {
 
   const currentExam = exams[currentIndex];
   const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
+
+  if (isAdminMode) {
+    return <AdminDashboard onExit={() => {
+      window.history.pushState({}, '', '/');
+      setIsAdminMode(false);
+    }} />;
+  }
 
   return (
     <div 
@@ -1277,10 +1278,19 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <div className="absolute bottom-6 left-6 z-20">
+      <div className="absolute bottom-6 left-6 z-20 flex items-center gap-4">
          <p className="text-white/10 text-[10px] uppercase tracking-widest font-bold">
            &copy; {new Date().getFullYear()} نظام إدارة الامتحانات
          </p>
+         <button 
+           onClick={() => {
+             window.history.pushState({}, '', '/admin');
+             window.dispatchEvent(new PopStateEvent('popstate'));
+           }}
+           className="text-white/5 hover:text-white/20 transition-colors text-[10px] uppercase tracking-widest font-bold"
+         >
+           Admin
+         </button>
       </div>
     </div>
   );
