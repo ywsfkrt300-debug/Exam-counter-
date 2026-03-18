@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import TelegramBot from "node-telegram-bot-api";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, query, orderBy } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "firebase/firestore";
 import firebaseConfig from "./firebase-applet-config.json";
 import dotenv from "dotenv";
 
@@ -37,6 +37,8 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
           [{ text: "📊 إحصائيات الزوار", callback_data: "user_stats" }],
           [{ text: "🖼️ صورة فوق العداد", callback_data: "set_overlay" }],
           [{ text: "👨‍💻 تحديث بيانات المطور", callback_data: "set_dev_info" }],
+          [{ text: "🎨 تغيير نوع الخط", callback_data: "change_font" }],
+          [{ text: "🛡️ سجل الأمان (الهجمات)", callback_data: "view_logs" }],
           [{ text: "📚 إضافة مادة دراسية", callback_data: "add_subject" }],
           [{ text: "🗑️ حذف مادة دراسية", callback_data: "delete_subject_list" }],
           [{ text: "📅 رفع جدول دراسي", callback_data: "upload_schedule" }],
@@ -111,6 +113,19 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
     } else if (action === "set_dev_info") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_NAME" };
       bot?.sendMessage(chatId, "👨‍💻 حسناً، أرسل اسم المطور الجديد:");
+    } else if (action === "change_font") {
+      bot?.sendMessage(chatId, "🎨 اختر نوع الخط الذي تريده للموقع:", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Cairo (عصري)", callback_data: "set_font_Cairo" }],
+            [{ text: "Almarai (ناعم)", callback_data: "set_font_Almarai" }],
+            [{ text: "Tajawal (أنيق)", callback_data: "set_font_Tajawal" }],
+            [{ text: "Amiri (كلاسيكي)", callback_data: "set_font_Amiri" }]
+          ]
+        }
+      });
+    } else if (action === "view_logs") {
+      await viewSecurityLogs(chatId);
     } else if (action === "set_overlay") {
       userStates[chatId] = { step: "WAITING_FOR_OVERLAY_URL" };
       bot?.sendMessage(chatId, "🖼️ أرسل رابط الصورة الذي تريد وضعه فوق العداد (أو أرسل 'حذف' لإزالتها):");
@@ -255,6 +270,15 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       } catch (e) {
         bot?.sendMessage(chatId, "❌ فشل حذف الجدول.");
       }
+    } else if (action.startsWith("set_font_")) {
+      const font = action.replace("set_font_", "");
+      try {
+        await setDoc(doc(db, "settings", "config"), { fontFamily: font }, { merge: true });
+        bot?.sendMessage(chatId, `✅ تم تغيير الخط إلى *${font}* بنجاح!`, { parse_mode: "Markdown" });
+        sendMainMenu(chatId);
+      } catch (e) {
+        bot?.sendMessage(chatId, "❌ فشل تغيير الخط.");
+      }
     }
 
     bot?.answerCallbackQuery(query.id);
@@ -264,6 +288,9 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
     const chatId = msg.chat.id;
     const text = msg.text;
     const state = userStates[chatId];
+
+    // Log all messages as activity
+    await logActivity(chatId, text || "[Media/Other]", text?.startsWith("/") ? "info" : "info");
 
     if (!state || !text || text.startsWith("/")) return;
 
@@ -485,6 +512,53 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       });
     } catch (e) {
       bot?.sendMessage(chatId, "❌ فشل جلب الجداول.");
+    }
+  }
+
+  async function logActivity(chatId: number, message: string, type: "info" | "warning" | "attack" = "info") {
+    try {
+      const id = Date.now().toString();
+      // Simple attack detection: if message is very long or contains suspicious keywords
+      let finalType = type;
+      const suspiciousKeywords = ["drop", "delete", "script", "hack", "admin"];
+      if (message.length > 500 || suspiciousKeywords.some(k => message.toLowerCase().includes(k))) {
+        finalType = "attack";
+      }
+
+      await setDoc(doc(db, "logs", id), {
+        id,
+        chatId,
+        message: message.slice(0, 500),
+        type: finalType,
+        timestamp: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error("Logging failed", e);
+    }
+  }
+
+  async function viewSecurityLogs(chatId: number) {
+    try {
+      const q = query(collection(db, "logs"), orderBy("timestamp", "desc"), limit(10));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        bot?.sendMessage(chatId, "🛡️ لا توجد سجلات حالياً.");
+        return;
+      }
+
+      let message = "🛡️ *آخر 10 سجلات أمان ونشاط:*\n\n";
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const emoji = data.type === "attack" ? "🔴" : data.type === "warning" ? "🟡" : "🔵";
+        const time = new Date(data.timestamp).toLocaleTimeString('ar-EG');
+        message += `${emoji} [${time}] ${data.type.toUpperCase()}: ${data.message}\n`;
+      });
+
+      bot?.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      sendMainMenu(chatId);
+    } catch (e) {
+      bot?.sendMessage(chatId, "❌ فشل جلب السجلات.");
     }
   }
 

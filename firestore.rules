@@ -73,5 +73,11 @@ service cloud.firestore {
       allow read: if true; // Publicly readable
       allow write: if true; // Bot can add schedules
     }
+
+    // Log rules
+    match /logs/{logId} {
+      allow read: if true; // Bot can read logs
+      allow write: if true; // Bot can write logs
+    }
   }
 }

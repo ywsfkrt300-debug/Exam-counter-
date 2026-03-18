@@ -30,6 +30,7 @@ interface Settings {
   overlayImageUrl?: string;
   developerName?: string;
   developerImageUrl?: string;
+  fontFamily?: string;
 }
 
 interface Notification {
@@ -320,11 +321,15 @@ export default function App() {
   };
 
   const currentExam = exams[currentIndex];
+  const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
 
   return (
     <div 
       dir="rtl"
-      className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center font-sans transition-all duration-1000"
+      className={cn(
+        "min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center transition-all duration-1000",
+        fontClass
+      )}
       style={{
         backgroundImage: `url(${settings.backgroundUrl})`,
         backgroundSize: 'cover',

@@ -1,1 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&family=Almarai:wght@400;700;800&family=Tajawal:wght@400;700;900&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-cairo: "Cairo", sans-serif;
+  --font-almarai: "Almarai", sans-serif;
+  --font-tajawal: "Tajawal", sans-serif;
+  --font-amiri: "Amiri", serif;
+}

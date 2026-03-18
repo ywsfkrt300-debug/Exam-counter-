@@ -22,7 +22,8 @@
         "maintenanceMode": { "type": "boolean", "description": "Whether the site is in maintenance mode." },
         "overlayImageUrl": { "type": "string", "description": "URL of an image to display above the countdown." },
         "developerName": { "type": "string", "description": "Name of the developer." },
-        "developerImageUrl": { "type": "string", "description": "URL of the developer's image." }
+        "developerImageUrl": { "type": "string", "description": "URL of the developer's image." },
+        "fontFamily": { "type": "string", "enum": ["Cairo", "Almarai", "Tajawal", "Amiri"], "description": "The font family for the app." }
       }
     },
     "Notification": {
@@ -82,6 +83,19 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "title", "imageUrl"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "A security or activity log entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "warning", "attack"] },
+        "message": { "type": "string" },
+        "chatId": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "message", "timestamp"]
     }
   },
   "firestore": {
@@ -112,6 +126,10 @@
     "/schedules/{scheduleId}": {
       "schema": "Schedule",
       "description": "Study schedules uploaded by the bot."
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Security and activity logs for the bot."
     }
   }
 }
