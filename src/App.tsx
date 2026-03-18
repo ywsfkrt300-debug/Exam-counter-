@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer } from 'firebase/firestore';
-import { db } from './firebase';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX } from 'lucide-react';
@@ -95,29 +96,38 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsLoggedIn(true);
-        setError('');
-      } else {
-        setError(data.message);
-      }
-    } catch (err) {
-      setError('حدث خطأ في الاتصال');
+    if (password === '33454') {
+      setIsLoggedIn(true);
+      setError('');
+    } else {
+      setError('كلمة المرور غير صحيحة');
     }
   };
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/admin/stats');
-      const data = await res.json();
-      if (data.success) setStats(data.stats);
+      const presenceSnap = await getDocs(collection(db, 'presence'));
+      const progressSnap = await getDocs(collection(db, 'progress'));
+      const subjectsSnap = await getDocs(collection(db, 'subjects'));
+      const examsSnap = await getDocs(collection(db, 'exams'));
+      
+      const statsData = {
+        activeUsers: presenceSnap.size,
+        totalSubjects: subjectsSnap.size,
+        totalExams: examsSnap.size,
+        progressCount: progressSnap.size,
+        governorates: {} as { [key: string]: number },
+        ips: [] as string[]
+      };
+
+      presenceSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const gov = data.governorate || "غير معروف";
+        statsData.governorates[gov] = (statsData.governorates[gov] || 0) + 1;
+        if (data.ip) statsData.ips.push(data.ip);
+      });
+
+      setStats(statsData);
     } catch (err) {
       console.error('Failed to fetch stats', err);
     }
@@ -125,9 +135,9 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch('/api/admin/logs');
-      const data = await res.json();
-      if (data.success) setLogs(data.logs);
+      const q = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(50));
+      const snapshot = await getDocs(q);
+      setLogs(snapshot.docs.map(doc => doc.data()));
     } catch (err) {
       console.error('Failed to fetch logs', err);
     }
@@ -138,21 +148,13 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
     if (!file) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/admin/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success) {
-        setUploadedUrl(data.url);
-      } else {
-        alert(data.message);
-      }
+      const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setUploadedUrl(url);
     } catch (err) {
+      console.error('Upload failed', err);
       alert('فشل الرفع');
     } finally {
       setUploading(false);
