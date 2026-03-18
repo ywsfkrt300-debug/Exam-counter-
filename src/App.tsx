@@ -60,7 +60,25 @@ interface UserProgress {
   studyHours: { [key: string]: number };
 }
 
-const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
+const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'admin' } = {
+  '/': 'home',
+  '/الرئيسية': 'home',
+  '/عن-الموقع': 'about',
+  '/الدراسة': 'study',
+  '/الجداول': 'schedules',
+  '/لوحة-التحكم': 'admin',
+  '/admin': 'admin'
+};
+
+const REVERSE_PAGE_MAP: { [key: string]: string } = {
+  'home': '/الرئيسية',
+  'about': '/عن-الموقع',
+  'study': '/الدراسة',
+  'schedules': '/الجداول',
+  'admin': '/لوحة-التحكم'
+};
+
+const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -72,6 +90,7 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -199,137 +218,188 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 font-sans">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
+        {/* Background Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none" />
+        
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md p-8 bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl"
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="w-full max-w-md p-10 bg-zinc-900/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl relative z-10"
         >
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20">
-              <ShieldAlert className="text-emerald-500" size={32} />
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6 border border-emerald-500/20 shadow-inner">
+              <ShieldAlert className="text-emerald-500" size={40} />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-tight">لوحة التحكم</h1>
-            <p className="text-zinc-500 text-sm mt-1">يرجى إدخال كلمة المرور للمتابعة</p>
+            <h1 className="text-3xl font-black text-white tracking-tight">لوحة التحكم</h1>
+            <p className="text-zinc-500 text-sm mt-2 font-medium">الوصول مقيد للمسؤولين فقط</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="•••••"
-              className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white text-center text-2xl tracking-[0.5em] focus:border-emerald-500/50 outline-none transition-all"
-              autoFocus
-            />
-            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">كلمة المرور</label>
+              <input 
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="•••••"
+                className="w-full p-5 bg-black/40 border border-white/10 rounded-2xl text-white text-center text-3xl tracking-[0.5em] focus:border-emerald-500/50 outline-none transition-all shadow-inner"
+                autoFocus
+              />
+            </div>
+            {error && (
+              <motion.p 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-red-400 text-sm text-center font-bold"
+              >
+                {error}
+              </motion.p>
+            )}
             <button 
               type="submit"
-              className="w-full p-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-900/20"
+              className="w-full p-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg rounded-2xl transition-all shadow-xl shadow-emerald-900/20 active:scale-[0.98]"
             >
-              دخول
+              تسجيل الدخول
             </button>
           </form>
-          <button onClick={onExit} className="w-full mt-4 text-zinc-500 hover:text-white transition-colors text-sm">العودة للموقع</button>
+          <button 
+            onClick={onExit} 
+            className="w-full mt-6 text-zinc-500 hover:text-white transition-colors text-sm font-bold flex items-center justify-center gap-2"
+          >
+            <Home size={16} />
+            العودة للموقع الرئيسي
+          </button>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <div className="w-full md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-l border-white/10 p-6 flex flex-col gap-2">
-        <div className="flex items-center gap-3 mb-8 px-2">
+    <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col lg:flex-row overflow-hidden">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-zinc-900 border-b border-white/10 z-50">
+        <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
             <LayoutGrid size={18} className="text-black" />
           </div>
           <span className="font-black tracking-tight">المدير</span>
         </div>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-white">
+          {isSidebarOpen ? <Maximize2 size={24} /> : <LayoutGrid size={24} />}
+        </button>
+      </div>
 
-        {[
-          { id: 'stats', label: 'الإحصائيات', icon: BarChart },
-          { id: 'subjects', label: 'المواد', icon: BookOpen },
-          { id: 'exams', label: 'الامتحانات', icon: Clock },
-          { id: 'schedules', label: 'الجداول', icon: Calendar },
-          { id: 'notifications', label: 'التنبيهات', icon: Bell },
-          { id: 'uploads', label: 'الرفع', icon: Download },
-          { id: 'logs', label: 'السجلات', icon: FileText },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex items-center gap-3 p-3 rounded-xl transition-all text-sm font-medium",
-              activeTab === tab.id ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-            )}
-          >
-            <tab.icon size={18} />
-            {tab.label}
-          </button>
-        ))}
-
-        <div className="mt-auto pt-6">
-          <button onClick={onExit} className="w-full p-3 text-zinc-500 hover:text-white transition-colors text-sm flex items-center gap-3">
-            <ChevronRight size={18} />
-            خروج
-          </button>
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-0 lg:relative lg:inset-auto z-40 w-full lg:w-72 bg-zinc-900/95 lg:bg-zinc-900 border-l border-white/10 p-6 flex flex-col gap-2 transition-transform duration-300 transform lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "translate-x-full"
+      )}>
+        <div className="hidden lg:flex items-center gap-3 mb-8 px-2">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <LayoutGrid size={18} className="text-black" />
+          </div>
+          <span className="font-black tracking-tight text-xl">لوحة التحكم</span>
         </div>
+
+        <div className="flex flex-col gap-1 flex-1 overflow-y-auto pr-2">
+          {[
+            { id: 'stats', label: 'الإحصائيات', icon: BarChart },
+            { id: 'subjects', label: 'المواد', icon: BookOpen },
+            { id: 'exams', label: 'الامتحانات', icon: Clock },
+            { id: 'schedules', label: 'الجداول', icon: Calendar },
+            { id: 'notifications', label: 'التنبيهات', icon: Bell },
+            { id: 'uploads', label: 'رفع الملفات', icon: Download },
+            { id: 'logs', label: 'السجلات', icon: FileText },
+            { id: 'settings', label: 'الإعدادات', icon: Maximize2 },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold",
+                activeTab === tab.id 
+                  ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/20" 
+                  : "text-zinc-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <tab.icon size={20} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <button 
+          onClick={onExit}
+          className="mt-auto flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-2xl transition-all font-bold"
+        >
+          <Home size={20} />
+          <span>الخروج للموقع</span>
+        </button>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6 md:p-12 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 bg-zinc-950">
         <AnimatePresence mode="wait">
           {activeTab === 'stats' && (
             <motion.div 
               key="stats"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              exit={{ opacity: 0, y: -20 }}
               className="space-y-8"
             >
-              <h2 className="text-3xl font-black tracking-tight">نظرة عامة</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {[
-                  { label: 'المستخدمين النشطين', value: stats?.activeUsers || 0, color: 'emerald' },
-                  { label: 'إجمالي المواد', value: stats?.totalSubjects || 0, color: 'blue' },
-                  { label: 'إجمالي الامتحانات', value: stats?.totalExams || 0, color: 'purple' },
-                  { label: 'تفاعلات التقدم', value: stats?.progressCount || 0, color: 'orange' },
+                  { label: 'المتصلين الآن', value: stats?.activeUsers || 0, color: 'bg-blue-500', icon: User },
+                  { label: 'إجمالي المواد', value: stats?.totalSubjects || 0, color: 'bg-emerald-500', icon: BookOpen },
+                  { label: 'الامتحانات', value: stats?.totalExams || 0, color: 'bg-amber-500', icon: Clock },
+                  { label: 'سجلات التقدم', value: stats?.progressCount || 0, color: 'bg-purple-500', icon: FileText },
                 ].map((s, i) => (
-                  <div key={i} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl">
-                    <p className="text-zinc-500 text-xs uppercase tracking-widest font-bold mb-2">{s.label}</p>
-                    <p className="text-4xl font-black">{s.value}</p>
+                  <div key={i} className="p-8 bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-white/20 transition-all">
+                    <div className={cn("absolute top-0 right-0 w-24 h-24 blur-[60px] opacity-20 transition-opacity group-hover:opacity-40", s.color)} />
+                    <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className={cn("p-3 rounded-2xl text-white shadow-lg", s.color)}>
+                          <s.icon size={20} />
+                        </div>
+                      </div>
+                      <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-1">{s.label}</p>
+                      <p className="text-4xl font-black tracking-tighter">{s.value}</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl">
-                  <h3 className="text-xl font-bold mb-6">توزيع المحافظات</h3>
-                  <div className="space-y-4">
-                    {stats?.governorates && Object.entries(stats.governorates).map(([gov, count]: [string, any]) => (
-                      <div key={gov} className="flex items-center justify-between">
-                        <span className="text-zinc-400">{gov}</span>
-                        <div className="flex items-center gap-3 flex-1 mx-4">
-                          <div className="h-1.5 bg-zinc-800 rounded-full flex-1 overflow-hidden">
-                            <div 
-                              className="h-full bg-emerald-500" 
-                              style={{ width: `${(count / stats.activeUsers) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span className="font-mono">{count}</span>
-                      </div>
-                    ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="p-8 bg-zinc-900 border border-white/10 rounded-[2rem] shadow-xl">
+                  <h3 className="text-xl font-bold mb-6">توزيع الطلاب حسب المحافظات</h3>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={Object.entries(stats?.governorates || {}).map(([name, value]) => ({ name, value }))}>
+                        <XAxis dataKey="name" stroke="#52525b" fontSize={12} />
+                        <YAxis stroke="#52525b" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '1rem' }}
+                          itemStyle={{ color: '#fff' }}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {Object.entries(stats?.governorates || {}).map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'][index % 5]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
 
-                <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl">
-                  <h3 className="text-xl font-bold mb-6">عناوين IP الأخيرة</h3>
-                  <div className="space-y-2 font-mono text-sm text-zinc-500">
-                    {stats?.ips?.slice(0, 10).map((ip: string, i: number) => (
-                      <div key={i} className="p-2 bg-black/20 rounded-lg">{ip}</div>
+                <div className="p-8 bg-zinc-900 border border-white/10 rounded-[2rem] shadow-xl overflow-hidden">
+                  <h3 className="text-xl font-bold mb-6">عناوين IP النشطة</h3>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    {stats?.ips?.map((ip: string, i: number) => (
+                      <div key={i} className="p-3 bg-black/40 border border-white/5 rounded-xl text-sm font-mono text-zinc-400">
+                        {ip}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -338,41 +408,48 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
           )}
 
           {activeTab === 'subjects' && (
-            <motion.div key="subjects" className="space-y-8">
-              <div className="flex justify-between items-center">
+            <motion.div 
+              key="subjects"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة المواد</h2>
                 <button 
                   onClick={() => {
                     const name = prompt('اسم المادة:');
                     if (name) addSubject(name);
                   }}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
+                  <BookOpen size={20} />
                   إضافة مادة
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {subjects.map(s => (
-                  <div key={s.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
+                  <div key={s.id} className="p-6 bg-zinc-900 border border-white/10 rounded-[2rem] space-y-6 shadow-xl hover:border-white/20 transition-all group">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-lg">{s.name}</h4>
-                      <button onClick={() => deleteItem('subjects', s.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+                      <h4 className="font-bold text-xl text-white group-hover:text-emerald-400 transition-colors">{s.name}</h4>
+                      <button onClick={() => deleteItem('subjects', s.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
                         حذف
                       </button>
                     </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">الوحدات</p>
+                    <div className="space-y-4">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">الوحدات الدراسية</p>
                       <div className="flex flex-wrap gap-2">
                         {s.units.map((u, i) => (
-                          <span key={i} className="px-3 py-1 bg-black/40 border border-white/5 rounded-full text-xs text-zinc-400">{u}</span>
+                          <span key={i} className="px-3 py-1.5 bg-black/40 border border-white/5 rounded-xl text-xs text-zinc-400 font-medium">{u}</span>
                         ))}
                         <button 
                           onClick={() => {
                             const unit = prompt('اسم الوحدة:');
                             if (unit) addUnit(s.id, unit);
                           }}
-                          className="px-3 py-1 border border-dashed border-white/20 rounded-full text-xs text-zinc-500 hover:text-white hover:border-white transition-all"
+                          className="px-3 py-1.5 border border-dashed border-white/20 rounded-xl text-xs text-zinc-500 hover:text-white hover:border-white transition-all"
                         >
                           + إضافة وحدة
                         </button>
@@ -385,8 +462,14 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
           )}
 
           {activeTab === 'schedules' && (
-            <motion.div key="schedules" className="space-y-8">
-              <div className="flex justify-between items-center">
+            <motion.div 
+              key="schedules"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الجداول</h2>
                 <button 
                   onClick={() => {
@@ -394,22 +477,26 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
                     const url = prompt('رابط الصورة:');
                     if (title && url) addSchedule(title, url);
                   }}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
+                  <Calendar size={20} />
                   إضافة جدول
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {schedules.map(s => (
-                  <div key={s.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-lg">{s.title}</h4>
-                      <button onClick={() => deleteItem('schedules', s.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
-                        حذف
-                      </button>
+                  <div key={s.id} className="p-4 bg-zinc-900 border border-white/10 rounded-[2rem] space-y-4 shadow-xl overflow-hidden group">
+                    <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/5">
+                      <img src={s.imageUrl} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                      <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
+                        <h4 className="font-bold text-lg text-white">{s.title}</h4>
+                        <button onClick={() => deleteItem('schedules', s.id)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all backdrop-blur-md">
+                          حذف
+                        </button>
+                      </div>
                     </div>
-                    <img src={s.imageUrl} alt={s.title} className="w-full h-32 object-cover rounded-xl border border-white/5" referrerPolicy="no-referrer" />
                   </div>
                 ))}
               </div>
@@ -417,25 +504,38 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
           )}
 
           {activeTab === 'notifications' && (
-            <motion.div key="notifications" className="space-y-8">
-              <h2 className="text-3xl font-black tracking-tight">إرسال تنبيه</h2>
-              <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
-                <textarea 
-                  id="notif-msg"
-                  placeholder="اكتب رسالة التنبيه هنا..."
-                  className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-emerald-500/50 transition-all"
-                />
+            <motion.div 
+              key="notifications"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-2xl mx-auto space-y-8"
+            >
+              <div className="text-center">
+                <h2 className="text-3xl font-black tracking-tight mb-2">إرسال تنبيه عام</h2>
+                <p className="text-zinc-500">سيظهر هذا التنبيه لجميع المستخدمين المتصلين حالياً.</p>
+              </div>
+              <div className="p-8 bg-zinc-900 border border-white/10 rounded-[2.5rem] space-y-6 shadow-2xl">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-zinc-500 uppercase tracking-widest px-2">محتوى الرسالة</label>
+                  <textarea 
+                    id="notif-msg"
+                    placeholder="اكتب رسالة التنبيه هنا..."
+                    className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-white outline-none focus:border-emerald-500/50 transition-all resize-none text-lg"
+                  />
+                </div>
                 <button 
                   onClick={() => {
                     const msg = (document.getElementById('notif-msg') as HTMLTextAreaElement).value;
                     if (msg) {
                       sendNotification(msg);
                       (document.getElementById('notif-msg') as HTMLTextAreaElement).value = '';
-                      alert('تم الإرسال!');
+                      alert('تم إرسال التنبيه بنجاح!');
                     }
                   }}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all"
+                  className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-black text-xl transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
                 >
+                  <Bell size={24} />
                   إرسال للجميع
                 </button>
               </div>
@@ -443,32 +543,42 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
           )}
 
           {activeTab === 'exams' && (
-            <motion.div key="exams" className="space-y-8">
-              <div className="flex justify-between items-center">
+            <motion.div 
+              key="exams"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الامتحانات</h2>
                 <button 
                   onClick={() => {
                     const name = prompt('اسم الامتحان:');
                     const date = prompt('التاريخ (YYYY-MM-DD HH:mm):');
-                    const desc = prompt('الوصف:');
+                    const desc = prompt('الوصف (اختياري):');
                     if (name && date) addExam(name, date, desc || '');
                   }}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
+                  <Clock size={20} />
                   إضافة امتحان
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {exams.map(e => (
-                  <div key={e.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-lg">{e.name}</h4>
-                      <p className="text-zinc-500 text-sm font-mono">{e.targetDate}</p>
+                  <div key={e.id} className="p-6 bg-zinc-900 border border-white/10 rounded-[2rem] space-y-4 shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-xl">{e.name}</h4>
+                        <p className="text-zinc-500 text-sm font-mono mt-1">{e.targetDate}</p>
+                      </div>
+                      <button onClick={() => deleteItem('exams', e.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
+                        حذف
+                      </button>
                     </div>
-                    <button onClick={() => deleteItem('exams', e.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
-                      حذف
-                    </button>
+                    <p className="text-zinc-400 text-sm line-clamp-2">{e.description || 'لا يوجد وصف'}</p>
                   </div>
                 ))}
               </div>
@@ -476,16 +586,25 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
           )}
 
           {activeTab === 'uploads' && (
-            <motion.div key="uploads" className="space-y-8">
-              <h2 className="text-3xl font-black tracking-tight">رفع الملفات</h2>
+            <motion.div 
+              key="uploads"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-4xl mx-auto space-y-8"
+            >
+              <div className="text-center">
+                <h2 className="text-3xl font-black tracking-tight mb-2">رفع الملفات</h2>
+                <p className="text-zinc-500">ارفع الصور والملفات للحصول على روابط مباشرة لاستخدامها في الموقع.</p>
+              </div>
               
-              <div className="p-12 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center gap-6 bg-white/5">
-                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20">
-                  <Download className="text-emerald-500" size={32} />
+              <div className="p-12 border-2 border-dashed border-white/10 rounded-[3rem] flex flex-col items-center justify-center gap-8 bg-zinc-900/50 hover:bg-zinc-900 transition-all group">
+                <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform duration-500">
+                  <Download className="text-emerald-500" size={40} />
                 </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold">اختر صورة أو ملف للرفع</p>
-                  <p className="text-zinc-500 text-sm mt-1">سيتم تحويل الملف إلى رابط مباشر</p>
+                <div className="text-center space-y-2">
+                  <p className="text-2xl font-black">اسحب الملفات هنا أو انقر للاختيار</p>
+                  <p className="text-zinc-500 font-medium">يدعم الصور، PDF، والملفات النصية</p>
                 </div>
                 <input 
                   type="file" 
@@ -497,7 +616,7 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
                 <label 
                   htmlFor="file-upload"
                   className={cn(
-                    "px-8 py-3 bg-white text-black font-bold rounded-2xl cursor-pointer hover:bg-zinc-200 transition-all",
+                    "px-12 py-4 bg-white text-black font-black rounded-2xl cursor-pointer hover:bg-zinc-200 transition-all shadow-xl",
                     uploading && "opacity-50 cursor-not-allowed"
                   )}
                 >
@@ -506,51 +625,162 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
               </div>
 
               {uploadedUrl && (
-                <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl">
-                  <p className="text-emerald-500 text-sm font-bold mb-2 uppercase tracking-widest">تم الرفع بنجاح</p>
-                  <div className="flex gap-4">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-8 bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] shadow-2xl"
+                >
+                  <p className="text-emerald-500 text-xs font-black mb-4 uppercase tracking-widest px-2">تم الرفع بنجاح</p>
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <input 
                       readOnly 
                       value={uploadedUrl} 
-                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-sm text-zinc-300"
+                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl p-4 font-mono text-sm text-zinc-300 outline-none"
                     />
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(uploadedUrl);
-                        alert('تم النسخ!');
+                        alert('تم نسخ الرابط بنجاح!');
                       }}
-                      className="px-6 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                      className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black transition-all shadow-lg shadow-emerald-500/20"
                     >
-                      نسخ
+                      نسخ الرابط
                     </button>
                   </div>
-                </div>
+                </motion.div>
               )}
             </motion.div>
           )}
 
           {activeTab === 'logs' && (
-            <motion.div key="logs" className="space-y-8">
+            <motion.div 
+              key="logs"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
               <h2 className="text-3xl font-black tracking-tight">سجلات النظام</h2>
-              <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden">
+              <div className="bg-zinc-900 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
                 <div className="max-h-[600px] overflow-y-auto">
-                  {logs.map((log, i) => (
-                    <div key={i} className="p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                      <div className="flex justify-between items-start mb-1">
+                  {logs.length === 0 ? (
+                    <div className="p-20 text-center text-zinc-500 font-bold">لا توجد سجلات حالياً.</div>
+                  ) : logs.map((log, i) => (
+                    <div key={i} className="p-6 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors group">
+                      <div className="flex justify-between items-start mb-2">
                         <span className={cn(
-                          "text-[10px] uppercase font-bold px-2 py-0.5 rounded",
+                          "text-[10px] uppercase font-black px-3 py-1 rounded-full tracking-widest",
                           log.type === 'security' ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"
                         )}>
-                          {log.type}
+                          {log.type || 'system'}
                         </span>
-                        <span className="text-[10px] text-zinc-500 font-mono">
-                          {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : 'N/A'}
+                        <span className="text-[10px] text-zinc-500 font-mono group-hover:text-zinc-300 transition-colors">
+                          {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString('ar-EG') : 'N/A'}
                         </span>
                       </div>
-                      <p className="text-sm text-zinc-300">{log.message}</p>
-                      {log.details && <p className="text-[10px] text-zinc-600 mt-1 font-mono">{JSON.stringify(log.details)}</p>}
+                      <p className="text-zinc-200 font-bold">{log.message || log.action}</p>
+                      {log.details && <p className="text-[10px] text-zinc-600 mt-2 font-mono bg-black/20 p-2 rounded-lg">{JSON.stringify(log.details)}</p>}
                     </div>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'settings' && (
+            <motion.div 
+              key="settings"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-4xl mx-auto space-y-8"
+            >
+              <h2 className="text-3xl font-black tracking-tight">إعدادات النظام</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-8 bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] space-y-8 shadow-2xl">
+                  <h3 className="text-xl font-black flex items-center gap-3">
+                    <div className="p-2 bg-emerald-500/10 rounded-lg">
+                      <Maximize2 size={20} className="text-emerald-500" />
+                    </div>
+                    المظهر العام
+                  </h3>
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط الخلفية</label>
+                      <input 
+                        type="text"
+                        value={settings.backgroundUrl}
+                        onChange={(e) => setSettings({ ...settings, backgroundUrl: e.target.value })}
+                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط الصورة العلوية</label>
+                      <input 
+                        type="text"
+                        value={settings.overlayImageUrl}
+                        onChange={(e) => setSettings({ ...settings, overlayImageUrl: e.target.value })}
+                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">اسم المطور</label>
+                        <input 
+                          type="text"
+                          value={settings.developerName}
+                          onChange={(e) => setSettings({ ...settings, developerName: e.target.value })}
+                          className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط صورة المطور</label>
+                        <input 
+                          type="text"
+                          value={settings.developerImageUrl}
+                          onChange={(e) => setSettings({ ...settings, developerImageUrl: e.target.value })}
+                          className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-zinc-900 border border-white/10 rounded-[2.5rem] space-y-8 shadow-2xl">
+                  <h3 className="text-xl font-black flex items-center gap-3">
+                    <div className="p-2 bg-amber-500/10 rounded-lg">
+                      <ShieldAlert size={20} className="text-amber-500" />
+                    </div>
+                    حالة الموقع
+                  </h3>
+                  <div className="flex items-center justify-between p-6 bg-black/40 border border-white/10 rounded-3xl">
+                    <div className="space-y-1">
+                      <span className="font-black block">وضع الصيانة</span>
+                      <span className="text-xs text-zinc-500">تعطيل الوصول للمستخدمين</span>
+                    </div>
+                    <button 
+                      onClick={() => setSettings({ ...settings, maintenanceMode: !settings.maintenanceMode })}
+                      className={cn(
+                        "w-16 h-9 rounded-full transition-all relative p-1",
+                        settings.maintenanceMode ? "bg-amber-500" : "bg-zinc-700"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-7 h-7 bg-white rounded-full transition-all shadow-md",
+                        settings.maintenanceMode ? "translate-x-0" : "translate-x-7"
+                      )} />
+                    </button>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      await setDoc(doc(db, 'settings', 'config'), settings);
+                      alert('تم حفظ الإعدادات بنجاح!');
+                    }}
+                    className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-black text-lg transition-all shadow-xl shadow-emerald-500/20"
+                  >
+                    حفظ الإعدادات
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -607,38 +837,46 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
-  const [isAdminMode, setIsAdminMode] = useState(window.location.pathname === '/admin');
+  const [isAdminMode, setIsAdminMode] = useState(PAGE_MAP[window.location.pathname] === 'admin');
+  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>(
+    (PAGE_MAP[window.location.pathname] as any) || 'home'
+  );
+  const [sessionId] = useState(() => localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [userCount, setUserCount] = useState(0);
+  const [presenceData, setPresenceData] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error'>('connected');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
+  const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.5, soundEnabled });
+  const [playTransition] = useSound('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3', { volume: 0.3, soundEnabled });
 
   useEffect(() => {
     const handlePopState = () => {
-      setIsAdminMode(window.location.pathname === '/admin');
+      const path = window.location.pathname;
+      const mappedPage = PAGE_MAP[path] || 'home';
+      if (mappedPage === 'admin') {
+        setIsAdminMode(true);
+      } else {
+        setIsAdminMode(false);
+        setPage(mappedPage as any);
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>('home');
-  const [notification, setNotification] = useState<Notification | null>(null);
-  const [userCount, setUserCount] = useState(0);
-  const [presenceData, setPresenceData] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [userProgress, setUserProgress] = useState<{ [key: string]: UserProgress }>({});
-  const [sessionId, setSessionId] = useState(localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
-  const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('soundEnabled') !== 'false');
-
-  // Sounds
-  const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
-  const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', { volume: 0.5, soundEnabled });
-  const [playTransition] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.3, soundEnabled });
-
-  useEffect(() => {
-    localStorage.setItem('soundEnabled', String(soundEnabled));
-  }, [soundEnabled]);
-
   const handlePageChange = (newPage: typeof page) => {
     playTransition();
     setPage(newPage);
+    const newPath = REVERSE_PAGE_MAP[newPage] || '/';
+    window.history.pushState({}, '', newPath);
+    const pageTitle = newPage === 'home' ? 'الرئيسية' : newPage === 'about' ? 'من نحن' : newPage === 'study' ? 'الدراسة' : 'الجداول';
+    document.title = `نظام الامتحانات - ${pageTitle}`;
   };
 
   useEffect(() => {
@@ -859,10 +1097,15 @@ export default function App() {
   const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
 
   if (isAdminMode) {
-    return <AdminDashboard onExit={() => {
-      window.history.pushState({}, '', '/');
-      setIsAdminMode(false);
-    }} />;
+    return <AdminDashboard 
+      settings={settings} 
+      setSettings={setSettings} 
+      onExit={() => {
+        window.history.pushState({}, '', '/الرئيسية');
+        setIsAdminMode(false);
+        setPage('home');
+      }} 
+    />;
   }
 
   return (
@@ -884,7 +1127,13 @@ export default function App() {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
 
       {/* Header Controls */}
-      <div className="absolute top-6 left-6 flex gap-3 z-20">
+      <div className="absolute top-6 left-6 flex items-center gap-3 z-20">
+        {connectionStatus === 'error' && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-full text-red-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
+            <ShieldAlert size={12} />
+            خطأ في الاتصال
+          </div>
+        )}
         <button 
           onClick={() => setSoundEnabled(!soundEnabled)}
           className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
@@ -908,7 +1157,7 @@ export default function App() {
             "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
             page === 'study' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
           )}
-          title="خطة الدراسة"
+          title="الدراسة"
         >
           <BookOpen size={20} />
         </button>
@@ -918,47 +1167,11 @@ export default function App() {
             "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
             page === 'schedules' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
           )}
-          title="الجداول الدراسية"
+          title="الجداول"
         >
-          <FileText size={20} />
+          <Calendar size={20} />
         </button>
-        {page === 'home' && (
-          <button 
-            onClick={() => { playClick(); setViewMode(viewMode === 'single' ? 'grid' : 'single'); }}
-            className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
-            title={viewMode === 'single' ? 'عرض الشبكة' : 'عرض منفرد'}
-          >
-            {viewMode === 'single' ? <LayoutGrid size={20} /> : <Maximize2 size={20} />}
-          </button>
-        )}
       </div>
-
-      {/* Notification Banner */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div 
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            className="absolute top-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-xl px-6"
-          >
-            <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-4 shadow-2xl">
-              <div className="p-2 bg-emerald-500 rounded-xl text-white">
-                <Bell size={20} />
-              </div>
-              <div className="flex-1">
-                <p className="text-white text-sm font-medium">{notification.message}</p>
-              </div>
-              <button 
-                onClick={() => setNotification(null)}
-                className="text-white/40 hover:text-white transition-colors"
-              >
-                ×
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
@@ -966,84 +1179,130 @@ export default function App() {
           {page === 'about' ? (
             <motion.div 
               key="about-page"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch"
             >
-              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] text-center shadow-2xl">
-                <div className="mb-8 relative inline-block">
-                  <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full" />
+              <div className="lg:col-span-5 p-8 md:p-12 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] text-center shadow-2xl relative overflow-hidden group flex flex-col justify-center">
+                <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <div className="mb-8 relative inline-block mx-auto">
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+                    transition={{ repeat: Infinity, duration: 6 }}
+                    className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full" 
+                  />
                   <img 
                     src={settings.developerImageUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"} 
                     alt="Developer" 
-                    className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-white/20 shadow-2xl object-cover relative z-10"
+                    className="w-48 h-48 md:w-64 md:h-64 rounded-full border-8 border-white/10 shadow-2xl object-cover relative z-10 hover:scale-105 transition-transform duration-500"
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <h2 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">
+                <h2 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight">
                   {settings.developerName || "اسم المطور"}
                 </h2>
-                <div className="h-1 w-12 bg-emerald-500 mx-auto mb-6 rounded-full" />
-                <p className="text-zinc-300 text-lg leading-relaxed mb-8">
-                  مرحباً بكم في منصتنا! نحن نسعى جاهدين لتوفير أفضل الأدوات للطلاب لمساعدتهم في تنظيم أوقاتهم والاستعداد للامتحانات بكل ثقة.
+                <div className="h-1.5 w-20 bg-emerald-500 mx-auto mb-8 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.6)]" />
+                <p className="text-zinc-300 text-lg md:text-xl leading-relaxed mb-10 font-medium">
+                  مرحباً بكم في منصتنا! نحن نسعى جاهدين لتوفير أفضل الأدوات للطلاب لمساعدتهم في تنظيم أوقاتهم والاستعداد للامتحانات بكل ثقة واحترافية.
                 </p>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <h4 className="text-emerald-400 font-bold mb-1">الرؤية</h4>
-                    <p className="text-xs text-zinc-400">تسهيل الوصول للمعلومات</p>
-                  </div>
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <h4 className="text-emerald-400 font-bold mb-1">الهدف</h4>
-                    <p className="text-xs text-zinc-400">دعم الطلاب في رحلتهم</p>
-                  </div>
+                  {[
+                    { label: 'الرؤية', sub: 'تسهيل الوصول', icon: Maximize2 },
+                    { label: 'الهدف', sub: 'دعم الطلاب', icon: ShieldAlert }
+                  ].map((item, i) => (
+                    <div key={i} className="p-5 bg-white/5 rounded-[2rem] border border-white/5 hover:border-emerald-500/30 transition-all group/card">
+                      <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover/card:bg-emerald-500 group-hover/card:text-white transition-all">
+                        <item.icon size={20} className="text-emerald-500 group-hover/card:text-white" />
+                      </div>
+                      <h4 className="text-white font-black text-sm mb-1">{item.label}</h4>
+                      <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">{item.sub}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] shadow-2xl h-full">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-500">
-                    <MapIcon size={20} />
+              <div className="lg:col-span-7 p-8 md:p-12 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl flex flex-col">
+                <div className="flex items-center justify-between mb-10">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-500 shadow-lg shadow-emerald-500/10">
+                      <MapIcon size={24} />
+                    </div>
+                    <h3 className="text-3xl font-black text-white tracking-tight">خريطة الزوار</h3>
                   </div>
-                  <h3 className="text-2xl font-bold text-white">خريطة الزوار التفاعلية</h3>
+                  <div className="px-4 py-2 bg-white/5 rounded-full border border-white/10 text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                    مباشر الآن
+                  </div>
                 </div>
-                <div className="h-[300px] w-full">
+                <div className="flex-1 min-h-[400px] w-full bg-black/20 rounded-[2.5rem] p-6 border border-white/5 relative group">
+                  <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none" />
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getGovStats()} layout="vertical">
+                    <BarChart data={getGovStats()} layout="vertical" margin={{ left: 20, right: 20 }}>
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={100} stroke="#888" fontSize={12} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px' }}
-                        itemStyle={{ color: '#10b981' }}
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        width={100} 
+                        stroke="#71717a" 
+                        fontSize={12} 
+                        fontWeight="900"
+                        tickLine={false}
+                        axisLine={false}
                       />
-                      <Bar dataKey="value" radius={[0, 10, 10, 0]}>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(9, 9, 11, 0.95)', 
+                          border: '1px solid rgba(255, 255, 255, 0.1)', 
+                          borderRadius: '24px',
+                          backdropFilter: 'blur(12px)',
+                          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                          padding: '16px'
+                        }}
+                        itemStyle={{ color: '#10b981', fontWeight: '900', fontSize: '14px' }}
+                        cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }}
+                      />
+                      <Bar dataKey="value" radius={[0, 20, 20, 0]} barSize={24}>
                         {getGovStats().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${0.3 + (index * 0.1)})`} />
+                          <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${0.3 + (index * 0.15)})`} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="text-zinc-500 text-xs mt-4 text-center">توزيع الطلاب حسب المحافظات والمدن بشكل حي ومباشر.</p>
+                <div className="mt-8 grid grid-cols-3 gap-4">
+                  {[
+                    { label: 'المتصلين', value: userCount, icon: User },
+                    { label: 'المحافظات', value: getGovStats().length, icon: MapIcon },
+                    { label: 'التفاعل', value: 'عالي', icon: Bell }
+                  ].map((stat, i) => (
+                    <div key={i} className="text-center p-4 bg-white/5 rounded-2xl border border-white/5">
+                      <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">{stat.label}</p>
+                      <p className="text-xl font-black text-white">{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </motion.div>
           ) : page === 'study' ? (
             <motion.div 
               key="study-page"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex flex-col gap-8"
+              exit={{ opacity: 0, y: -40 }}
+              className="flex flex-col gap-12"
             >
-              <div className="text-center mb-4">
-                <h2 className="text-4xl md:text-6xl font-black text-white mb-2">خطة الدراسة والتقدم</h2>
-                <p className="text-zinc-400">تتبع تقدمك في المواد الدراسية وحدد ساعات المذاكرة لكل وحدة.</p>
+              <div className="text-center max-w-3xl mx-auto">
+                <h2 className="text-5xl md:text-7xl font-black text-white mb-4 tracking-tight leading-tight">خطة الدراسة والتقدم</h2>
+                <p className="text-zinc-400 text-xl font-medium">تتبع تقدمك في المواد الدراسية، حدد ساعات المذاكرة، وراقب إنجازاتك اليومية.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {subjects.length === 0 ? (
-                  <div className="col-span-full p-12 bg-white/5 border border-white/10 rounded-[2rem] text-center">
-                    <p className="text-zinc-500">لا توجد مواد دراسية مضافة حالياً. اطلب من المطور إضافتها عبر البوت.</p>
+                  <div className="col-span-full p-24 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] text-center shadow-2xl">
+                    <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <BookOpen size={40} className="text-zinc-600" />
+                    </div>
+                    <p className="text-zinc-500 text-xl font-bold">لا توجد مواد دراسية مضافة حالياً. يرجى مراجعة الإدارة.</p>
                   </div>
                 ) : subjects.map((subject, sIdx) => {
                   const progress = userProgress[subject.id] || { completedUnits: [], studyHours: {} };
@@ -1052,12 +1311,30 @@ export default function App() {
                   return (
                     <motion.div 
                       key={`subject-${subject.id}-${sIdx}`}
-                      className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-xl"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: sIdx * 0.1 }}
+                      className="p-10 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] shadow-2xl hover:border-emerald-500/30 transition-all group"
                     >
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-2xl font-bold text-white">{subject.name}</h3>
-                        <div className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold">
-                          {percent}% مكتمل
+                      <div className="flex justify-between items-center mb-10">
+                        <div className="space-y-1">
+                          <h3 className="text-3xl font-black text-white group-hover:text-emerald-400 transition-colors">{subject.name}</h3>
+                          <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{subject.units.length} وحدات دراسية</p>
+                        </div>
+                        <div className="relative w-20 h-20">
+                          <svg className="w-full h-full -rotate-90">
+                            <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="8" className="text-white/5" />
+                            <circle 
+                              cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="8" 
+                              className="text-emerald-500 transition-all duration-1000 ease-out"
+                              strokeDasharray={226}
+                              strokeDashoffset={226 - (226 * percent) / 100}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center text-lg font-black text-white">
+                            {percent}%
+                          </div>
                         </div>
                       </div>
                       
@@ -1067,36 +1344,38 @@ export default function App() {
                           const hours = progress.studyHours[unit] || 0;
                           
                           return (
-                            <div key={`${subject.id}-${unit}-${uIdx}`} className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                            <div key={`${subject.id}-${unit}-${uIdx}`} className="flex flex-col gap-4 p-6 bg-white/5 rounded-[2rem] border border-white/5 hover:border-emerald-500/20 transition-all group/unit">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-4">
                                   <button 
                                     onClick={() => toggleUnit(subject.id, unit)}
                                     className={cn(
-                                      "p-1 rounded-md transition-all",
-                                      isDone ? "bg-emerald-500 text-white" : "bg-white/10 text-white/20"
+                                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 shadow-lg",
+                                      isDone ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-white/10 text-white/20 hover:bg-white/20"
                                     )}
                                   >
-                                    <CheckCircle2 size={18} />
+                                    <CheckCircle2 size={22} className={cn(isDone ? "scale-100" : "scale-75")} />
                                   </button>
-                                  <span className={cn("text-sm font-medium", isDone ? "text-white/40 line-through" : "text-white")}>
+                                  <span className={cn("text-lg font-bold transition-all duration-500", isDone ? "text-white/30 line-through" : "text-white")}>
                                     {unit.startsWith('http') ? (
-                                      <a href={unit} target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300 transition-colors">
-                                        رابط المادة / الملف 📎
+                                      <a href={unit} target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300 transition-colors flex items-center gap-2">
+                                        رابط المادة / الملف <Download size={16} />
                                       </a>
                                     ) : unit}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2 bg-black/20 px-3 py-1 rounded-lg">
-                                  <Timer size={14} className="text-zinc-500" />
-                                  <input 
-                                    type="number" 
-                                    min="0" 
-                                    value={hours}
-                                    onChange={(e) => setHours(subject.id, unit, parseInt(e.target.value) || 0)}
-                                    className="bg-transparent text-white text-xs w-8 text-center focus:outline-none"
-                                  />
-                                  <span className="text-[10px] text-zinc-500">ساعة</span>
+                                <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-2xl border border-white/5 group-hover/unit:border-emerald-500/30 transition-all">
+                                  <Timer size={16} className="text-emerald-500" />
+                                  <div className="flex items-center gap-1">
+                                    <input 
+                                      type="number" 
+                                      min="0" 
+                                      value={hours}
+                                      onChange={(e) => setHours(subject.id, unit, parseInt(e.target.value) || 0)}
+                                      className="bg-transparent text-white font-black text-sm w-10 text-center focus:outline-none"
+                                    />
+                                    <span className="text-[10px] text-zinc-500 font-black uppercase">ساعة</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1114,44 +1393,51 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.1 }}
-              className="flex flex-col gap-8"
+              className="flex flex-col gap-12"
             >
-              <div className="text-center mb-4">
-                <h2 className="text-4xl md:text-6xl font-black text-white mb-2">الجداول الدراسية</h2>
-                <p className="text-zinc-400">هنا تجد الجداول التي تساعدك في تنظيم وقتك. يمكنك تحميلها بصيغة PDF.</p>
+              <div className="text-center max-w-3xl mx-auto">
+                <h2 className="text-5xl md:text-7xl font-black text-white mb-4 tracking-tight leading-tight">الجداول الدراسية</h2>
+                <p className="text-zinc-400 text-xl font-medium">نظم وقتك بذكاء مع جداولنا المنسقة. حملها واستخدمها في أي وقت.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 {schedules.length === 0 ? (
-                  <div className="col-span-full p-12 bg-white/5 border border-white/10 rounded-[2rem] text-center">
-                    <p className="text-zinc-500">لا توجد جداول دراسية مضافة حالياً.</p>
+                  <div className="col-span-full p-24 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] text-center shadow-2xl">
+                    <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FileText size={40} className="text-zinc-600" />
+                    </div>
+                    <p className="text-zinc-500 text-xl font-bold">لا توجد جداول دراسية متاحة حالياً.</p>
                   </div>
                 ) : schedules.map((schedule, idx) => (
                   <motion.div 
                     key={schedule.id}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="p-6 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-xl group overflow-hidden"
+                    className="p-8 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] shadow-2xl group overflow-hidden hover:border-emerald-500/30 transition-all"
                   >
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-xl font-bold text-white">{schedule.title}</h3>
+                    <div className="flex justify-between items-center mb-8">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors">{schedule.title}</h3>
+                        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">تاريخ الإضافة: {schedule.timestamp?.toDate ? schedule.timestamp.toDate().toLocaleDateString('ar-EG') : 'N/A'}</p>
+                      </div>
                       <button 
                         onClick={() => downloadScheduleAsPDF(schedule.id, schedule.title)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20"
+                        className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-black transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                       >
-                        <Download size={16} />
+                        <Download size={18} />
                         تحميل PDF
                       </button>
                     </div>
                     <div 
                       id={`schedule-${schedule.id}`}
-                      className="relative rounded-xl overflow-hidden border border-white/5 bg-zinc-900"
+                      className="relative rounded-[2rem] overflow-hidden border border-white/10 bg-zinc-950 shadow-inner group/img"
                     >
+                      <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover/img:opacity-100 transition-opacity duration-500 pointer-events-none" />
                       <img 
                         src={schedule.imageUrl} 
                         alt={schedule.title}
-                        className="w-full h-auto object-contain max-h-[500px]"
+                        className="w-full h-auto object-contain max-h-[600px] transition-transform duration-700 group-hover/img:scale-105"
                         referrerPolicy="no-referrer"
                       />
                     </div>
@@ -1159,37 +1445,40 @@ export default function App() {
                 ))}
               </div>
             </motion.div>
-          ) : exams.length === 0 ? (
-            <motion.div 
-              key="no-exams-state"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center text-white"
-            >
-              <h1 className="text-4xl font-bold mb-4">لا توجد امتحانات مجدولة</h1>
-              <p className="text-white/70">استخدم بوت التليجرام لإضافة موعد امتحان جديد.</p>
-            </motion.div>
-          ) : viewMode === 'single' ? (
+          ) : (
+            /* HOME PAGE */
+            exams.length === 0 ? (
+              <motion.div 
+                key="no-exams-state"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="text-center text-white"
+              >
+                <h1 className="text-4xl font-bold mb-4">لا توجد امتحانات مجدولة</h1>
+                <p className="text-white/70">استخدم بوت التليجرام لإضافة موعد امتحان جديد.</p>
+              </motion.div>
+            ) : viewMode === 'single' ? (
             <motion.div 
               key={`single-${currentExam.id}-${currentIndex}`}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              transition={{ duration: 0.5 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1.05, y: -20 }}
+              transition={{ type: "spring", damping: 20, stiffness: 100 }}
               className="flex flex-col items-center"
             >
-              <div className="text-center mb-12">
+              <div className="text-center mb-12 relative">
                 {settings.overlayImageUrl && (
                   <motion.div 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mb-8 flex justify-center"
+                    initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    className="mb-10 flex justify-center relative"
                   >
+                    <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full" />
                     <img 
                       src={settings.overlayImageUrl} 
                       alt="Overlay" 
-                      className="max-w-[200px] md:max-w-[300px] h-auto rounded-2xl shadow-2xl border border-white/10"
+                      className="max-w-[220px] md:max-w-[340px] h-auto rounded-[2rem] shadow-2xl border border-white/10 relative z-10 hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
                     />
                   </motion.div>
@@ -1197,86 +1486,105 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-white/80 text-sm mb-6"
+                  transition={{ delay: 0.2 }}
+                  className="inline-flex items-center gap-3 px-6 py-2 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 text-white/90 text-sm mb-8 shadow-xl"
                 >
-                  <Calendar size={14} />
-                  <span>{new Date(currentExam.targetDate).toLocaleDateString('ar-EG', { dateStyle: 'long' })}</span>
+                  <Calendar size={16} className="text-emerald-400" />
+                  <span className="font-bold">{new Date(currentExam.targetDate).toLocaleDateString('ar-EG', { dateStyle: 'full' })}</span>
                 </motion.div>
-                <h1 className="text-5xl md:text-8xl font-black text-white mb-4 tracking-tighter drop-shadow-2xl uppercase">
+                <h1 className="text-6xl md:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] uppercase leading-none">
                   {currentExam.name}
                 </h1>
-                <p className="text-xl md:text-2xl text-white/80 font-light max-w-2xl mx-auto italic">
-                  {currentExam.description || "بدأ العد التنازلي. حافظ على تركيزك واستمر في التقدم."}
+                <p className="text-xl md:text-3xl text-white/70 font-medium max-w-3xl mx-auto leading-relaxed">
+                  {currentExam.description || "بدأ العد التنازلي. حافظ على تركيزك واستمر في التقدم نحو النجاح."}
                 </p>
               </div>
 
               {timeLeft ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 w-full max-w-4xl">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 w-full max-w-5xl">
                   <CountdownBox value={timeLeft.days || 0} label="أيام" />
                   <CountdownBox value={timeLeft.hours || 0} label="ساعات" />
                   <CountdownBox value={timeLeft.minutes || 0} label="دقائق" />
                   <CountdownBox value={timeLeft.seconds || 0} label="ثواني" />
                 </div>
               ) : (
-                <div className="p-8 bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 rounded-3xl text-center">
-                  <h2 className="text-4xl font-bold text-white">بدأ الامتحان!</h2>
-                  <p className="text-emerald-200 mt-2">بالتوفيق لجميع الطلاب.</p>
-                </div>
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="p-12 bg-emerald-500/20 backdrop-blur-2xl border border-emerald-500/40 rounded-[3rem] text-center shadow-2xl relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
+                  <div className="relative z-10">
+                    <h2 className="text-5xl md:text-7xl font-black text-white mb-4">بدأ الامتحان!</h2>
+                    <p className="text-emerald-200 text-xl font-bold">كل التوفيق لجميع الطلاب في مسيرتهم.</p>
+                  </div>
+                </motion.div>
               )}
 
               {/* Navigation */}
               {exams.length > 1 && (
-                <div className="flex items-center gap-8 mt-16">
+                <div className="flex items-center gap-12 mt-20">
                   <button 
                     onClick={prevExam}
-                    className="p-4 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all border border-white/20 group"
+                    className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20"
                   >
-                    <ChevronRight size={24} className="group-hover:translate-x-1 transition-transform" />
+                    <ChevronRight size={28} className="group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     {exams.map((_, idx) => (
-                      <div 
+                      <button
                         key={idx}
+                        onClick={() => setCurrentIndex(idx)}
                         className={cn(
-                          "w-2 h-2 rounded-full transition-all duration-300",
-                          idx === currentIndex ? "bg-white w-6" : "bg-white/30"
+                          "h-2 rounded-full transition-all duration-500",
+                          idx === currentIndex ? "bg-emerald-500 w-12 shadow-lg shadow-emerald-500/50" : "bg-white/20 w-3 hover:bg-white/40"
                         )}
                       />
                     ))}
                   </div>
                   <button 
                     onClick={nextExam}
-                    className="p-4 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all border border-white/20 group"
+                    className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20"
                   >
-                    <ChevronLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
+                    <ChevronLeft size={28} className="group-hover:-translate-x-1 transition-transform" />
                   </button>
                 </div>
               )}
             </motion.div>
           ) : (
-            <div key="exams-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div key="exams-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {exams.map((exam, idx) => (
                 <motion.div 
                   key={`grid-exam-${exam.id}-${idx}`}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
+                  transition={{ delay: idx * 0.1, type: "spring" }}
                   onClick={() => { setCurrentIndex(idx); setViewMode('single'); }}
-                  className="group cursor-pointer p-6 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-3xl transition-all hover:-translate-y-1"
+                  className="group cursor-pointer p-8 bg-black/40 hover:bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] transition-all hover:-translate-y-2 shadow-2xl hover:border-emerald-500/50"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-bold text-white group-hover:text-emerald-300 transition-colors">{exam.name}</h3>
-                    <Clock size={20} className="text-white/40" />
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500">
+                      <Clock size={24} />
+                    </div>
+                    <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">
+                      {new Date(exam.targetDate).getFullYear()}
+                    </div>
                   </div>
-                  <p className="text-white/60 text-sm mb-6 line-clamp-2">{exam.description}</p>
-                  <div className="flex items-center justify-between text-white/80 font-mono text-lg">
-                    <span>{formatDistanceToNow(new Date(exam.targetDate), { addSuffix: true, locale: undefined })}</span>
-                    <ChevronLeft size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <h3 className="text-2xl font-black text-white mb-3 group-hover:text-emerald-400 transition-colors">{exam.name}</h3>
+                  <p className="text-zinc-400 text-sm mb-8 line-clamp-3 leading-relaxed font-medium">{exam.description}</p>
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                    <span className="text-white/90 font-black text-lg">
+                      {formatDistanceToNow(new Date(exam.targetDate), { addSuffix: true, locale: undefined })}
+                    </span>
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500 transition-all">
+                      <ChevronLeft size={20} className="text-white" />
+                    </div>
                   </div>
                 </motion.div>
               ))}
             </div>
-          )}
+          )
+        )}
         </AnimatePresence>
       </div>
 
@@ -1286,7 +1594,7 @@ export default function App() {
          </p>
          <button 
            onClick={() => {
-             window.history.pushState({}, '', '/admin');
+             window.history.pushState({}, '', '/لوحة-التحكم');
              window.dispatchEvent(new PopStateEvent('popstate'));
            }}
            className="text-white/5 hover:text-white/20 transition-colors text-[10px] uppercase tracking-widest font-bold"
