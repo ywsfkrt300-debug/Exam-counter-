@@ -59,6 +59,506 @@ interface UserProgress {
   studyHours: { [key: string]: number };
 }
 
+const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [stats, setStats] = useState<any>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('stats');
+  const [uploading, setUploading] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState('');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchStats();
+      fetchLogs();
+      const unsubSubjects = onSnapshot(collection(db, 'subjects'), (snap) => {
+        setSubjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject)));
+      });
+      const unsubExams = onSnapshot(collection(db, 'exams'), (snap) => {
+        setExams(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam)));
+      });
+      const unsubSchedules = onSnapshot(collection(db, 'schedules'), (snap) => {
+        setSchedules(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
+      });
+      return () => {
+        unsubSubjects();
+        unsubExams();
+        unsubSchedules();
+      };
+    }
+  }, [isLoggedIn]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsLoggedIn(true);
+        setError('');
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError('حدث خطأ في الاتصال');
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/admin/stats');
+      const data = await res.json();
+      if (data.success) setStats(data.stats);
+    } catch (err) {
+      console.error('Failed to fetch stats', err);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/admin/logs');
+      const data = await res.json();
+      if (data.success) setLogs(data.logs);
+    } catch (err) {
+      console.error('Failed to fetch logs', err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedUrl(data.url);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert('فشل الرفع');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const addSubject = async (name: string) => {
+    const id = name.toLowerCase().replace(/\s+/g, '-');
+    await setDoc(doc(db, 'subjects', id), { name, units: [] });
+  };
+
+  const addExam = async (name: string, date: string, desc: string) => {
+    const id = Date.now().toString();
+    await setDoc(doc(db, 'exams', id), { name, targetDate: date, description: desc });
+  };
+
+  const addUnit = async (subjectId: string, unitName: string) => {
+    const subject = subjects.find(s => s.id === subjectId);
+    if (subject) {
+      await setDoc(doc(db, 'subjects', subjectId), { 
+        ...subject, 
+        units: [...subject.units, unitName] 
+      });
+    }
+  };
+
+  const addSchedule = async (title: string, imageUrl: string) => {
+    const id = Date.now().toString();
+    await setDoc(doc(db, 'schedules', id), { title, imageUrl, timestamp: serverTimestamp() });
+  };
+
+  const sendNotification = async (message: string) => {
+    const id = Date.now().toString();
+    await setDoc(doc(db, 'notifications', id), { message, timestamp: serverTimestamp() });
+  };
+
+  const deleteItem = async (col: string, id: string) => {
+    if (window.confirm('هل أنت متأكد من الحذف؟')) {
+      await deleteDoc(doc(db, col, id));
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 font-sans">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md p-8 bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl"
+        >
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20">
+              <ShieldAlert className="text-emerald-500" size={32} />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">لوحة التحكم</h1>
+            <p className="text-zinc-500 text-sm mt-1">يرجى إدخال كلمة المرور للمتابعة</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input 
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="•••••"
+              className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white text-center text-2xl tracking-[0.5em] focus:border-emerald-500/50 outline-none transition-all"
+              autoFocus
+            />
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            <button 
+              type="submit"
+              className="w-full p-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-900/20"
+            >
+              دخول
+            </button>
+          </form>
+          <button onClick={onExit} className="w-full mt-4 text-zinc-500 hover:text-white transition-colors text-sm">العودة للموقع</button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col md:flex-row">
+      {/* Sidebar */}
+      <div className="w-full md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-l border-white/10 p-6 flex flex-col gap-2">
+        <div className="flex items-center gap-3 mb-8 px-2">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <LayoutGrid size={18} className="text-black" />
+          </div>
+          <span className="font-black tracking-tight">المدير</span>
+        </div>
+
+        {[
+          { id: 'stats', label: 'الإحصائيات', icon: BarChart },
+          { id: 'subjects', label: 'المواد', icon: BookOpen },
+          { id: 'exams', label: 'الامتحانات', icon: Clock },
+          { id: 'schedules', label: 'الجداول', icon: Calendar },
+          { id: 'notifications', label: 'التنبيهات', icon: Bell },
+          { id: 'uploads', label: 'الرفع', icon: Download },
+          { id: 'logs', label: 'السجلات', icon: FileText },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex items-center gap-3 p-3 rounded-xl transition-all text-sm font-medium",
+              activeTab === tab.id ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+            )}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
+
+        <div className="mt-auto pt-6">
+          <button onClick={onExit} className="w-full p-3 text-zinc-500 hover:text-white transition-colors text-sm flex items-center gap-3">
+            <ChevronRight size={18} />
+            خروج
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-6 md:p-12 overflow-y-auto">
+        <AnimatePresence mode="wait">
+          {activeTab === 'stats' && (
+            <motion.div 
+              key="stats"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              <h2 className="text-3xl font-black tracking-tight">نظرة عامة</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'المستخدمين النشطين', value: stats?.activeUsers || 0, color: 'emerald' },
+                  { label: 'إجمالي المواد', value: stats?.totalSubjects || 0, color: 'blue' },
+                  { label: 'إجمالي الامتحانات', value: stats?.totalExams || 0, color: 'purple' },
+                  { label: 'تفاعلات التقدم', value: stats?.progressCount || 0, color: 'orange' },
+                ].map((s, i) => (
+                  <div key={i} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl">
+                    <p className="text-zinc-500 text-xs uppercase tracking-widest font-bold mb-2">{s.label}</p>
+                    <p className="text-4xl font-black">{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl">
+                  <h3 className="text-xl font-bold mb-6">توزيع المحافظات</h3>
+                  <div className="space-y-4">
+                    {stats?.governorates && Object.entries(stats.governorates).map(([gov, count]: [string, any]) => (
+                      <div key={gov} className="flex items-center justify-between">
+                        <span className="text-zinc-400">{gov}</span>
+                        <div className="flex items-center gap-3 flex-1 mx-4">
+                          <div className="h-1.5 bg-zinc-800 rounded-full flex-1 overflow-hidden">
+                            <div 
+                              className="h-full bg-emerald-500" 
+                              style={{ width: `${(count / stats.activeUsers) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="font-mono">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl">
+                  <h3 className="text-xl font-bold mb-6">عناوين IP الأخيرة</h3>
+                  <div className="space-y-2 font-mono text-sm text-zinc-500">
+                    {stats?.ips?.slice(0, 10).map((ip: string, i: number) => (
+                      <div key={i} className="p-2 bg-black/20 rounded-lg">{ip}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'subjects' && (
+            <motion.div key="subjects" className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black tracking-tight">إدارة المواد</h2>
+                <button 
+                  onClick={() => {
+                    const name = prompt('اسم المادة:');
+                    if (name) addSubject(name);
+                  }}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                >
+                  إضافة مادة
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {subjects.map(s => (
+                  <div key={s.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-lg">{s.name}</h4>
+                      <button onClick={() => deleteItem('subjects', s.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+                        حذف
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">الوحدات</p>
+                      <div className="flex flex-wrap gap-2">
+                        {s.units.map((u, i) => (
+                          <span key={i} className="px-3 py-1 bg-black/40 border border-white/5 rounded-full text-xs text-zinc-400">{u}</span>
+                        ))}
+                        <button 
+                          onClick={() => {
+                            const unit = prompt('اسم الوحدة:');
+                            if (unit) addUnit(s.id, unit);
+                          }}
+                          className="px-3 py-1 border border-dashed border-white/20 rounded-full text-xs text-zinc-500 hover:text-white hover:border-white transition-all"
+                        >
+                          + إضافة وحدة
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'schedules' && (
+            <motion.div key="schedules" className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black tracking-tight">إدارة الجداول</h2>
+                <button 
+                  onClick={() => {
+                    const title = prompt('عنوان الجدول:');
+                    const url = prompt('رابط الصورة:');
+                    if (title && url) addSchedule(title, url);
+                  }}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                >
+                  إضافة جدول
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {schedules.map(s => (
+                  <div key={s.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-lg">{s.title}</h4>
+                      <button onClick={() => deleteItem('schedules', s.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+                        حذف
+                      </button>
+                    </div>
+                    <img src={s.imageUrl} alt={s.title} className="w-full h-32 object-cover rounded-xl border border-white/5" referrerPolicy="no-referrer" />
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'notifications' && (
+            <motion.div key="notifications" className="space-y-8">
+              <h2 className="text-3xl font-black tracking-tight">إرسال تنبيه</h2>
+              <div className="p-8 bg-zinc-900 border border-white/10 rounded-3xl space-y-4">
+                <textarea 
+                  id="notif-msg"
+                  placeholder="اكتب رسالة التنبيه هنا..."
+                  className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-emerald-500/50 transition-all"
+                />
+                <button 
+                  onClick={() => {
+                    const msg = (document.getElementById('notif-msg') as HTMLTextAreaElement).value;
+                    if (msg) {
+                      sendNotification(msg);
+                      (document.getElementById('notif-msg') as HTMLTextAreaElement).value = '';
+                      alert('تم الإرسال!');
+                    }
+                  }}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all"
+                >
+                  إرسال للجميع
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'exams' && (
+            <motion.div key="exams" className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black tracking-tight">إدارة الامتحانات</h2>
+                <button 
+                  onClick={() => {
+                    const name = prompt('اسم الامتحان:');
+                    const date = prompt('التاريخ (YYYY-MM-DD HH:mm):');
+                    const desc = prompt('الوصف:');
+                    if (name && date) addExam(name, date, desc || '');
+                  }}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                >
+                  إضافة امتحان
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {exams.map(e => (
+                  <div key={e.id} className="p-6 bg-zinc-900 border border-white/10 rounded-3xl flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-lg">{e.name}</h4>
+                      <p className="text-zinc-500 text-sm font-mono">{e.targetDate}</p>
+                    </div>
+                    <button onClick={() => deleteItem('exams', e.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+                      حذف
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'uploads' && (
+            <motion.div key="uploads" className="space-y-8">
+              <h2 className="text-3xl font-black tracking-tight">رفع الملفات</h2>
+              
+              <div className="p-12 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center gap-6 bg-white/5">
+                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20">
+                  <Download className="text-emerald-500" size={32} />
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold">اختر صورة أو ملف للرفع</p>
+                  <p className="text-zinc-500 text-sm mt-1">سيتم تحويل الملف إلى رابط مباشر</p>
+                </div>
+                <input 
+                  type="file" 
+                  id="file-upload" 
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <label 
+                  htmlFor="file-upload"
+                  className={cn(
+                    "px-8 py-3 bg-white text-black font-bold rounded-2xl cursor-pointer hover:bg-zinc-200 transition-all",
+                    uploading && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {uploading ? 'جاري الرفع...' : 'اختيار ملف'}
+                </label>
+              </div>
+
+              {uploadedUrl && (
+                <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl">
+                  <p className="text-emerald-500 text-sm font-bold mb-2 uppercase tracking-widest">تم الرفع بنجاح</p>
+                  <div className="flex gap-4">
+                    <input 
+                      readOnly 
+                      value={uploadedUrl} 
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-sm text-zinc-300"
+                    />
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(uploadedUrl);
+                        alert('تم النسخ!');
+                      }}
+                      className="px-6 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all"
+                    >
+                      نسخ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'logs' && (
+            <motion.div key="logs" className="space-y-8">
+              <h2 className="text-3xl font-black tracking-tight">سجلات النظام</h2>
+              <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden">
+                <div className="max-h-[600px] overflow-y-auto">
+                  {logs.map((log, i) => (
+                    <div key={i} className="p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className={cn(
+                          "text-[10px] uppercase font-bold px-2 py-0.5 rounded",
+                          log.type === 'security' ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"
+                        )}>
+                          {log.type}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-zinc-300">{log.message}</p>
+                      {log.details && <p className="text-[10px] text-zinc-600 mt-1 font-mono">{JSON.stringify(log.details)}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
 const CountdownBox = ({ value, label }: { value: number; label: string }) => (
   <div className="flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl min-w-[120px] shadow-2xl group transition-all hover:border-emerald-500/50">
     <span className="text-5xl md:text-7xl font-black text-white tabular-nums tracking-tighter group-hover:text-emerald-400 transition-colors">
@@ -105,6 +605,22 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
+  const [isAdminMode, setIsAdminMode] = useState(window.location.pathname === '/admin');
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsAdminMode(window.location.pathname === '/admin');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (isAdminMode) {
+    return <AdminDashboard onExit={() => {
+      window.history.pushState({}, '', '/');
+      setIsAdminMode(false);
+    }} />;
+  }
   const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>('home');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [userCount, setUserCount] = useState(0);
