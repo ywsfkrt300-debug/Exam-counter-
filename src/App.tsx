@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer } from 'firebase/firestore';
 import { db } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -130,6 +130,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    }
+    testConnection();
+  }, []);
+
+  useEffect(() => {
     // Session ID for presence
     const sId = sessionId;
     localStorage.setItem('sessionId', sId);
@@ -141,12 +154,22 @@ export default function App() {
         let ip = 'Unknown';
         let governorate = 'Unknown';
         try {
-          const res = await fetch('https://ipapi.co/json/');
-          const data = await res.json();
-          ip = data.ip || 'Unknown';
-          governorate = data.region || data.city || 'Unknown';
+          // Try ipapi.co first
+          const res = await fetch('https://ipapi.co/json/').catch(() => null);
+          if (res && res.ok) {
+            const data = await res.json();
+            ip = data.ip || 'Unknown';
+            governorate = data.region || data.city || 'Unknown';
+          } else {
+            // Fallback 1: ipify for IP only
+            const resIp = await fetch('https://api.ipify.org?format=json').catch(() => null);
+            if (resIp && resIp.ok) {
+              const data = await resIp.json();
+              ip = data.ip || 'Unknown';
+            }
+          }
         } catch (e) {
-          console.error("Location fetch failed", e);
+          // Silent fail for location fetch - not critical for app functionality
         }
 
         await setDoc(presenceRef, { 
