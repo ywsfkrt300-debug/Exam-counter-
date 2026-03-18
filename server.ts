@@ -37,6 +37,8 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
           [{ text: "📊 إحصائيات الزوار", callback_data: "user_stats" }],
           [{ text: "🖼️ صورة فوق العداد", callback_data: "set_overlay" }],
           [{ text: "👨‍💻 تحديث بيانات المطور", callback_data: "set_dev_info" }],
+          [{ text: "📚 إضافة مادة دراسية", callback_data: "add_subject" }],
+          [{ text: "📉 إحصائيات يومية", callback_data: "daily_stats" }],
           [{ text: "👥 عدد المستخدمين", callback_data: "user_count" }],
           [{ text: "🖼️ تغيير خلفية الموقع", callback_data: "set_bg" }],
           [{ text: "❓ مساعدة", callback_data: "help" }]
@@ -77,6 +79,24 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         sendMainMenu(chatId);
       } catch (e) {
         bot?.sendMessage(chatId, "❌ فشل تغيير وضع الصيانة.");
+      }
+    } else if (action === "add_subject") {
+      userStates[chatId] = { step: "WAITING_FOR_SUBJECT_NAME" };
+      bot?.sendMessage(chatId, "📚 أرسل اسم المادة (مثال: رياضيات):");
+    } else if (action === "daily_stats") {
+      try {
+        const presenceSnap = await getDocs(collection(db, "presence"));
+        const progressSnap = await getDocs(collection(db, "progress"));
+        const subjectsSnap = await getDocs(collection(db, "subjects"));
+        
+        let message = "📊 *التقرير اليومي للطلاب:*\n\n";
+        message += `👥 عدد الطلاب النشطين: *${presenceSnap.size}*\n`;
+        message += `📚 عدد المواد المضافة: *${subjectsSnap.size}*\n`;
+        message += `✅ عدد الطلاب الذين سجلوا تقدماً: *${progressSnap.size}*\n\n`;
+        
+        bot?.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      } catch (e) {
+        bot?.sendMessage(chatId, "❌ فشل جلب التقرير اليومي.");
       }
     } else if (action === "set_dev_info") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_NAME" };
@@ -244,6 +264,28 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         sendMainMenu(chatId);
       } catch (error: any) {
         bot?.sendMessage(chatId, `❌ فشل إرسال الإشعار: ${error.message || error}`);
+      }
+    } else if (state.step === "WAITING_FOR_SUBJECT_NAME") {
+      userStates[chatId] = { step: "WAITING_FOR_SUBJECT_UNITS", data: { name: text } };
+      bot?.sendMessage(chatId, `✅ تم حفظ اسم المادة: ${text}\n📝 الآن أرسل أسماء الوحدات/الدروس مفصولة بفاصلة (مثال: الوحدة الأولى، الوحدة الثانية):`);
+    } else if (state.step === "WAITING_FOR_SUBJECT_UNITS") {
+      const units = text.split(",").map(u => u.trim()).filter(u => u.length > 0);
+      if (units.length === 0) {
+        bot?.sendMessage(chatId, "❌ يرجى إرسال وحدة واحدة على الأقل.");
+        return;
+      }
+      try {
+        const id = Date.now().toString();
+        await setDoc(doc(db, "subjects", id), {
+          id,
+          name: state.data.name,
+          units
+        });
+        bot?.sendMessage(chatId, `✅ تمت إضافة مادة *${state.data.name}* مع ${units.length} وحدة بنجاح!`, { parse_mode: "Markdown" });
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } catch (error: any) {
+        bot?.sendMessage(chatId, `❌ فشل إضافة المادة: ${error.message || error}`);
       }
     } else if (state.step === "WAITING_FOR_DEV_NAME") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_IMAGE", data: { name: text } };

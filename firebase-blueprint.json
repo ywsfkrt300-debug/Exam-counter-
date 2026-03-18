@@ -47,6 +47,29 @@
         "governorate": { "type": "string", "description": "User's location/governorate." }
       },
       "required": ["id", "lastSeen"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "A study subject with multiple units.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "units": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "units"]
+    },
+    "UserProgress": {
+      "title": "UserProgress",
+      "description": "Tracking student progress on subjects.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "completedUnits": { "type": "array", "items": { "type": "string" } },
+        "studyHours": { "type": "object", "description": "Map of unit name to hours." }
+      },
+      "required": ["sessionId", "subjectId"]
     }
   },
   "firestore": {
@@ -65,6 +88,14 @@
     "/presence/{sessionId}": {
       "schema": "Presence",
       "description": "Active user sessions for counting."
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Study subjects added by the bot."
+    },
+    "/progress/{progressId}": {
+      "schema": "UserProgress",
+      "description": "Student progress tracking."
     }
   }
 }

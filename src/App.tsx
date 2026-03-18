@@ -3,7 +3,8 @@ import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverT
 import { db } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -32,6 +33,19 @@ interface Notification {
   id: string;
   message: string;
   timestamp: any;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+  units: string[];
+}
+
+interface UserProgress {
+  sessionId: string;
+  subjectId: string;
+  completedUnits: string[];
+  studyHours: { [key: string]: number };
 }
 
 const CountdownBox = ({ value, label }: { value: number; label: string }) => (
@@ -80,14 +94,20 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
-  const [page, setPage] = useState<'home' | 'about'>('home');
+  const [page, setPage] = useState<'home' | 'about' | 'study'>('home');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [userCount, setUserCount] = useState(0);
+  const [presenceData, setPresenceData] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [userProgress, setUserProgress] = useState<{ [key: string]: UserProgress }>({});
+  const [sessionId, setSessionId] = useState('');
 
   useEffect(() => {
     // Session ID for presence
-    const sessionId = Math.random().toString(36).substring(7);
-    const presenceRef = doc(db, 'presence', sessionId);
+    const sId = localStorage.getItem('sessionId') || Math.random().toString(36).substring(7);
+    localStorage.setItem('sessionId', sId);
+    setSessionId(sId);
+    const presenceRef = doc(db, 'presence', sId);
 
     const updatePresence = async () => {
       try {
@@ -160,6 +180,24 @@ export default function App() {
     // Listen for user count
     const unsubscribePresence = onSnapshot(collection(db, 'presence'), (snapshot) => {
       setUserCount(snapshot.size);
+      setPresenceData(snapshot.docs.map(doc => doc.data()));
+    });
+
+    // Listen for subjects
+    const unsubscribeSubjects = onSnapshot(collection(db, 'subjects'), (snapshot) => {
+      setSubjects(snapshot.docs.map(doc => doc.data() as Subject));
+    });
+
+    // Listen for user progress
+    const unsubscribeProgress = onSnapshot(collection(db, 'progress'), (snapshot) => {
+      const progress: { [key: string]: UserProgress } = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data() as UserProgress;
+        if (data.sessionId === sId) {
+          progress[data.subjectId] = data;
+        }
+      });
+      setUserProgress(progress);
     });
 
     return () => {
@@ -169,6 +207,8 @@ export default function App() {
       unsubscribeSettings();
       unsubscribeNotifs();
       unsubscribePresence();
+      unsubscribeSubjects();
+      unsubscribeProgress();
     };
   }, []);
 
@@ -198,6 +238,33 @@ export default function App() {
   const nextExam = () => setCurrentIndex((prev) => (prev + 1) % exams.length);
   const prevExam = () => setCurrentIndex((prev) => (prev - 1 + exams.length) % exams.length);
 
+  const toggleUnit = async (subjectId: string, unit: string) => {
+    const current = userProgress[subjectId] || { sessionId, subjectId, completedUnits: [], studyHours: {} };
+    const completed = [...current.completedUnits];
+    const index = completed.indexOf(unit);
+    if (index > -1) {
+      completed.splice(index, 1);
+    } else {
+      completed.push(unit);
+    }
+    await setDoc(doc(db, 'progress', `${sessionId}_${subjectId}`), { ...current, completedUnits: completed }, { merge: true });
+  };
+
+  const setHours = async (subjectId: string, unit: string, hours: number) => {
+    const current = userProgress[subjectId] || { sessionId, subjectId, completedUnits: [], studyHours: {} };
+    const studyHours = { ...current.studyHours, [unit]: hours };
+    await setDoc(doc(db, 'progress', `${sessionId}_${subjectId}`), { ...current, studyHours }, { merge: true });
+  };
+
+  const getGovStats = () => {
+    const stats: { [key: string]: number } = {};
+    presenceData.forEach(p => {
+      const gov = p.governorate || 'غير معروف';
+      stats[gov] = (stats[gov] || 0) + 1;
+    });
+    return Object.entries(stats).map(([name, value]) => ({ name, value }));
+  };
+
   const currentExam = exams[currentIndex];
 
   return (
@@ -219,10 +286,23 @@ export default function App() {
       <div className="absolute top-6 left-6 flex gap-3 z-20">
         <button 
           onClick={() => setPage(page === 'home' ? 'about' : 'home')}
-          className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
-          title={page === 'home' ? 'من نحن' : 'الرئيسية'}
+          className={cn(
+            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
+            page === 'about' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
+          )}
+          title="من نحن"
         >
-          {page === 'home' ? <User size={20} /> : <Home size={20} />}
+          <User size={20} />
+        </button>
+        <button 
+          onClick={() => setPage(page === 'home' ? 'study' : 'home')}
+          className={cn(
+            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
+            page === 'study' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
+          )}
+          title="خطة الدراسة"
+        >
+          <BookOpen size={20} />
         </button>
         {page === 'home' && (
           <button 
@@ -271,9 +351,9 @@ export default function App() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex flex-col items-center text-center"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start"
             >
-              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] max-w-2xl w-full shadow-2xl">
+              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] text-center shadow-2xl">
                 <div className="mb-8 relative inline-block">
                   <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full" />
                   <img 
@@ -288,24 +368,122 @@ export default function App() {
                 </h2>
                 <div className="h-1 w-12 bg-emerald-500 mx-auto mb-6 rounded-full" />
                 <p className="text-zinc-300 text-lg leading-relaxed mb-8">
-                  مرحباً بكم في منصتنا! نحن نسعى جاهدين لتوفير أفضل الأدوات للطلاب لمساعدتهم في تنظيم أوقاتهم والاستعداد للامتحانات بكل ثقة. هذا المشروع هو نتاج شغفنا بالتعليم والتكنولوجيا.
+                  مرحباً بكم في منصتنا! نحن نسعى جاهدين لتوفير أفضل الأدوات للطلاب لمساعدتهم في تنظيم أوقاتهم والاستعداد للامتحانات بكل ثقة.
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
                     <h4 className="text-emerald-400 font-bold mb-1">الرؤية</h4>
-                    <p className="text-xs text-zinc-400">تسهيل الوصول للمعلومات الدراسية</p>
+                    <p className="text-xs text-zinc-400">تسهيل الوصول للمعلومات</p>
                   </div>
                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
                     <h4 className="text-emerald-400 font-bold mb-1">الهدف</h4>
-                    <p className="text-xs text-zinc-400">دعم الطلاب في رحلتهم التعليمية</p>
+                    <p className="text-xs text-zinc-400">دعم الطلاب في رحلتهم</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setPage('home')}
-                  className="mt-10 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
-                >
-                  العودة للرئيسية
-                </button>
+              </div>
+
+              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] shadow-2xl h-full">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-500">
+                    <MapIcon size={20} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">خريطة الزوار التفاعلية</h3>
+                </div>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getGovStats()} layout="vertical">
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={100} stroke="#888" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px' }}
+                        itemStyle={{ color: '#10b981' }}
+                      />
+                      <Bar dataKey="value" radius={[0, 10, 10, 0]}>
+                        {getGovStats().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${0.3 + (index * 0.1)})`} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-zinc-500 text-xs mt-4 text-center">توزيع الطلاب حسب المحافظات والمدن بشكل حي ومباشر.</p>
+              </div>
+            </motion.div>
+          ) : page === 'study' ? (
+            <motion.div 
+              key="study-page"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex flex-col gap-8"
+            >
+              <div className="text-center mb-4">
+                <h2 className="text-4xl md:text-6xl font-black text-white mb-2">خطة الدراسة والتقدم</h2>
+                <p className="text-zinc-400">تتبع تقدمك في المواد الدراسية وحدد ساعات المذاكرة لكل وحدة.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {subjects.length === 0 ? (
+                  <div className="col-span-full p-12 bg-white/5 border border-white/10 rounded-[2rem] text-center">
+                    <p className="text-zinc-500">لا توجد مواد دراسية مضافة حالياً. اطلب من المطور إضافتها عبر البوت.</p>
+                  </div>
+                ) : subjects.map(subject => {
+                  const progress = userProgress[subject.id] || { completedUnits: [], studyHours: {} };
+                  const percent = Math.round((progress.completedUnits.length / subject.units.length) * 100) || 0;
+                  
+                  return (
+                    <motion.div 
+                      key={subject.id}
+                      className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-xl"
+                    >
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-2xl font-bold text-white">{subject.name}</h3>
+                        <div className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold">
+                          {percent}% مكتمل
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {subject.units.map(unit => {
+                          const isDone = progress.completedUnits.includes(unit);
+                          const hours = progress.studyHours[unit] || 0;
+                          
+                          return (
+                            <div key={unit} className="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <button 
+                                    onClick={() => toggleUnit(subject.id, unit)}
+                                    className={cn(
+                                      "p-1 rounded-md transition-all",
+                                      isDone ? "bg-emerald-500 text-white" : "bg-white/10 text-white/20"
+                                    )}
+                                  >
+                                    <CheckCircle2 size={18} />
+                                  </button>
+                                  <span className={cn("text-sm font-medium", isDone ? "text-white/40 line-through" : "text-white")}>
+                                    {unit}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-black/20 px-3 py-1 rounded-lg">
+                                  <Timer size={14} className="text-zinc-500" />
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    value={hours}
+                                    onChange={(e) => setHours(subject.id, unit, parseInt(e.target.value) || 0)}
+                                    className="bg-transparent text-white text-xs w-8 text-center focus:outline-none"
+                                  />
+                                  <span className="text-[10px] text-zinc-500">ساعة</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </motion.div>
           ) : exams.length === 0 ? (
