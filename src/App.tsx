@@ -561,7 +561,11 @@ export default function App() {
                                     <CheckCircle2 size={18} />
                                   </button>
                                   <span className={cn("text-sm font-medium", isDone ? "text-white/40 line-through" : "text-white")}>
-                                    {unit}
+                                    {unit.startsWith('http') ? (
+                                      <a href={unit} target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300 transition-colors">
+                                        رابط المادة / الملف 📎
+                                      </a>
+                                    ) : unit}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 bg-black/20 px-3 py-1 rounded-lg">

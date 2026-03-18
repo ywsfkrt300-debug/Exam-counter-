@@ -4,6 +4,7 @@ import path from "path";
 import TelegramBot from "node-telegram-bot-api";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import firebaseConfig from "./firebase-applet-config.json";
 import dotenv from "dotenv";
 
@@ -16,6 +17,14 @@ const PORT = 3000;
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+const storage = getStorage(firebaseApp);
+
+// Helper to upload file to Firebase Storage
+async function uploadFileToFirebase(buffer: Buffer, fileName: string, mimeType: string): Promise<string> {
+  const storageRef = ref(storage, `uploads/${Date.now()}_${fileName}`);
+  await uploadBytes(storageRef, buffer, { contentType: mimeType });
+  return await getDownloadURL(storageRef);
+}
 
 // State management for interactive bot
 const userStates: { [key: number]: { step: string; data?: any } } = {};
@@ -128,7 +137,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       await viewSecurityLogs(chatId);
     } else if (action === "set_overlay") {
       userStates[chatId] = { step: "WAITING_FOR_OVERLAY_URL" };
-      bot?.sendMessage(chatId, "🖼️ أرسل رابط الصورة الذي تريد وضعه فوق العداد (أو أرسل 'حذف' لإزالتها):");
+      bot?.sendMessage(chatId, "🖼️ أرسل الصورة التي تريد وضعها فوق العداد مباشرة (أو رابط، أو أرسل 'حذف' لإزالتها):");
     } else if (action === "user_stats") {
       try {
         const snapshot = await getDocs(collection(db, "presence"));
@@ -169,7 +178,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       }
     } else if (action === "set_bg") {
       userStates[chatId] = { step: "WAITING_FOR_BG_URL" };
-      bot?.sendMessage(chatId, "🖼️ أرسل رابط الصورة الجديد الذي تريده كخلفية للموقع:");
+      bot?.sendMessage(chatId, "🖼️ أرسل الصورة التي تريدها كخلفية للموقع مباشرة (أو رابط):");
     } else if (action === "help") {
       bot?.sendMessage(chatId, "هذا البوت يساعدك في التحكم في موقع مؤقت الامتحانات.\n\nيمكنك إضافة امتحانات جديدة، حذفها، أو تغيير خلفية الموقع بسهولة عبر الأزرار.");
       sendMainMenu(chatId);
@@ -284,6 +293,100 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
     bot?.answerCallbackQuery(query.id);
   });
 
+  async function handleMedia(chatId: number, fileId: string, fileName: string, mimeType: string) {
+    const state = userStates[chatId];
+    if (!state) return;
+
+    try {
+      bot?.sendMessage(chatId, "⏳ جاري معالجة الملف ورفعه... يرجى الانتظار.");
+      const fileLink = await bot?.getFileLink(fileId);
+      if (!fileLink) throw new Error("فشل الحصول على رابط الملف من تلغرام.");
+
+      const response = await fetch(fileLink);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const downloadUrl = await uploadFileToFirebase(buffer, fileName, mimeType);
+      
+      // Process based on current state
+      if (state.step === "WAITING_FOR_SCHEDULE_URL") {
+        const id = Date.now().toString();
+        await setDoc(doc(db, "schedules", id), {
+          id,
+          title: state.data.title,
+          imageUrl: downloadUrl,
+          timestamp: new Date().toISOString()
+        });
+        bot?.sendMessage(chatId, "✅ تم رفع الجدول الدراسي بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } else if (state.step === "WAITING_FOR_DEV_IMAGE") {
+        await setDoc(doc(db, "settings", "config"), { 
+          developerName: state.data.name,
+          developerImageUrl: downloadUrl 
+        }, { merge: true });
+        bot?.sendMessage(chatId, "✅ تم تحديث بيانات المطور بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } else if (state.step === "WAITING_FOR_OVERLAY_URL") {
+        await setDoc(doc(db, "settings", "config"), { overlayImageUrl: downloadUrl }, { merge: true });
+        bot?.sendMessage(chatId, "✅ تم تحديث الصورة فوق العداد بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } else if (state.step === "WAITING_FOR_BG_URL") {
+        await setDoc(doc(db, "settings", "config"), {
+          backgroundUrl: downloadUrl,
+          theme: "glass"
+        }, { merge: true });
+        bot?.sendMessage(chatId, "✅ تم تحديث خلفية الموقع بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } else if (state.step === "WAITING_FOR_UNIT_NAME") {
+        const units = [...state.data.units, downloadUrl];
+        const currentUnit = state.data.currentUnit;
+        const totalCount = state.data.count;
+
+        if (currentUnit < totalCount) {
+          userStates[chatId] = { 
+            step: "WAITING_FOR_UNIT_NAME", 
+            data: { ...state.data, units, currentUnit: currentUnit + 1 } 
+          };
+          bot?.sendMessage(chatId, `📝 أرسل اسم الوحدة رقم ${currentUnit + 1} (أو أرسل ملفاً):`);
+        } else {
+          const id = Date.now().toString();
+          await setDoc(doc(db, "subjects", id), {
+            id,
+            name: state.data.name,
+            units
+          });
+          bot?.sendMessage(chatId, `✅ تمت إضافة مادة *${state.data.name}* مع ${units.length} وحدة بنجاح!`, { parse_mode: "Markdown" });
+          delete userStates[chatId];
+          sendMainMenu(chatId);
+        }
+      } else {
+        bot?.sendMessage(chatId, `📎 تم تحويل الملف إلى رابط بنجاح:\n\n${downloadUrl}`);
+      }
+    } catch (error: any) {
+      bot?.sendMessage(chatId, `❌ فشل معالجة الملف: ${error.message || error}`);
+    }
+  }
+
+  bot.on("photo", async (msg) => {
+    const chatId = msg.chat.id;
+    const photo = msg.photo?.pop(); // Get the largest photo
+    if (photo) {
+      await handleMedia(chatId, photo.file_id, "photo.jpg", "image/jpeg");
+    }
+  });
+
+  bot.on("document", async (msg) => {
+    const chatId = msg.chat.id;
+    const doc = msg.document;
+    if (doc) {
+      await handleMedia(chatId, doc.file_id, doc.file_name || "document", doc.mime_type || "application/octet-stream");
+    }
+  });
+
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -333,7 +436,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         step: "WAITING_FOR_UNIT_NAME", 
         data: { ...state.data, count, units: [], currentUnit: 1 } 
       };
-      bot?.sendMessage(chatId, `📝 حسناً، أرسل اسم الوحدة رقم 1:`);
+      bot?.sendMessage(chatId, `📝 حسناً، أرسل اسم الوحدة رقم 1 (أو أرسل ملف المادة مباشرة):`);
     } else if (state.step === "WAITING_FOR_UNIT_NAME") {
       const units = [...state.data.units, text];
       const currentUnit = state.data.currentUnit;
@@ -362,7 +465,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       }
     } else if (state.step === "WAITING_FOR_SCHEDULE_TITLE") {
       userStates[chatId] = { step: "WAITING_FOR_SCHEDULE_URL", data: { title: text } };
-      bot?.sendMessage(chatId, `✅ تم حفظ العنوان: ${text}\n🖼️ الآن أرسل رابط صورة الجدول (أو ملف):`);
+      bot?.sendMessage(chatId, `✅ تم حفظ العنوان: ${text}\n🖼️ الآن أرسل صورة الجدول مباشرة (أو رابط):`);
     } else if (state.step === "WAITING_FOR_SCHEDULE_URL") {
       if (!text.startsWith("http")) {
         bot?.sendMessage(chatId, "❌ يرجى إرسال رابط صحيح.");
@@ -384,7 +487,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       }
     } else if (state.step === "WAITING_FOR_DEV_NAME") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_IMAGE", data: { name: text } };
-      bot?.sendMessage(chatId, `✅ تم حفظ الاسم: ${text}\n🖼️ الآن أرسل رابط صورة المطور:`);
+      bot?.sendMessage(chatId, `✅ تم حفظ الاسم: ${text}\n🖼️ الآن أرسل صورة المطور مباشرة (أو رابط):`);
     } else if (state.step === "WAITING_FOR_DEV_IMAGE") {
       if (!text.startsWith("http")) {
         bot?.sendMessage(chatId, "❌ يرجى إرسال رابط صحيح يبدأ بـ http أو https");
