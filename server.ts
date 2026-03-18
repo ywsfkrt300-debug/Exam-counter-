@@ -266,26 +266,44 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         bot?.sendMessage(chatId, `❌ فشل إرسال الإشعار: ${error.message || error}`);
       }
     } else if (state.step === "WAITING_FOR_SUBJECT_NAME") {
-      userStates[chatId] = { step: "WAITING_FOR_SUBJECT_UNITS", data: { name: text } };
-      bot?.sendMessage(chatId, `✅ تم حفظ اسم المادة: ${text}\n📝 الآن أرسل أسماء الوحدات/الدروس مفصولة بفاصلة (مثال: الوحدة الأولى، الوحدة الثانية):`);
-    } else if (state.step === "WAITING_FOR_SUBJECT_UNITS") {
-      const units = text.split(",").map(u => u.trim()).filter(u => u.length > 0);
-      if (units.length === 0) {
-        bot?.sendMessage(chatId, "❌ يرجى إرسال وحدة واحدة على الأقل.");
+      userStates[chatId] = { step: "WAITING_FOR_UNIT_COUNT", data: { name: text } };
+      bot?.sendMessage(chatId, `✅ تم حفظ اسم المادة: ${text}\n🔢 كم عدد الوحدات/الدروس في هذه المادة؟ (أرسل رقماً):`);
+    } else if (state.step === "WAITING_FOR_UNIT_COUNT") {
+      const count = parseInt(text);
+      if (isNaN(count) || count <= 0) {
+        bot?.sendMessage(chatId, "❌ يرجى إرسال رقم صحيح أكبر من صفر.");
         return;
       }
-      try {
-        const id = Date.now().toString();
-        await setDoc(doc(db, "subjects", id), {
-          id,
-          name: state.data.name,
-          units
-        });
-        bot?.sendMessage(chatId, `✅ تمت إضافة مادة *${state.data.name}* مع ${units.length} وحدة بنجاح!`, { parse_mode: "Markdown" });
-        delete userStates[chatId];
-        sendMainMenu(chatId);
-      } catch (error: any) {
-        bot?.sendMessage(chatId, `❌ فشل إضافة المادة: ${error.message || error}`);
+      userStates[chatId] = { 
+        step: "WAITING_FOR_UNIT_NAME", 
+        data: { ...state.data, count, units: [], currentUnit: 1 } 
+      };
+      bot?.sendMessage(chatId, `📝 حسناً، أرسل اسم الوحدة رقم 1:`);
+    } else if (state.step === "WAITING_FOR_UNIT_NAME") {
+      const units = [...state.data.units, text];
+      const currentUnit = state.data.currentUnit;
+      const totalCount = state.data.count;
+
+      if (currentUnit < totalCount) {
+        userStates[chatId] = { 
+          step: "WAITING_FOR_UNIT_NAME", 
+          data: { ...state.data, units, currentUnit: currentUnit + 1 } 
+        };
+        bot?.sendMessage(chatId, `📝 أرسل اسم الوحدة رقم ${currentUnit + 1}:`);
+      } else {
+        try {
+          const id = Date.now().toString();
+          await setDoc(doc(db, "subjects", id), {
+            id,
+            name: state.data.name,
+            units
+          });
+          bot?.sendMessage(chatId, `✅ تمت إضافة مادة *${state.data.name}* مع ${units.length} وحدة بنجاح!`, { parse_mode: "Markdown" });
+          delete userStates[chatId];
+          sendMainMenu(chatId);
+        } catch (error: any) {
+          bot?.sendMessage(chatId, `❌ فشل إضافة المادة: ${error.message || error}`);
+        }
       }
     } else if (state.step === "WAITING_FOR_DEV_NAME") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_IMAGE", data: { name: text } };
