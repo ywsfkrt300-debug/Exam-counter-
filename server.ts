@@ -38,6 +38,9 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
           [{ text: "🖼️ صورة فوق العداد", callback_data: "set_overlay" }],
           [{ text: "👨‍💻 تحديث بيانات المطور", callback_data: "set_dev_info" }],
           [{ text: "📚 إضافة مادة دراسية", callback_data: "add_subject" }],
+          [{ text: "🗑️ حذف مادة دراسية", callback_data: "delete_subject_list" }],
+          [{ text: "📅 رفع جدول دراسي", callback_data: "upload_schedule" }],
+          [{ text: "🗑️ حذف جدول دراسي", callback_data: "delete_schedule_list" }],
           [{ text: "📉 إحصائيات يومية", callback_data: "daily_stats" }],
           [{ text: "👥 عدد المستخدمين", callback_data: "user_count" }],
           [{ text: "🖼️ تغيير خلفية الموقع", callback_data: "set_bg" }],
@@ -83,6 +86,13 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
     } else if (action === "add_subject") {
       userStates[chatId] = { step: "WAITING_FOR_SUBJECT_NAME" };
       bot?.sendMessage(chatId, "📚 أرسل اسم المادة (مثال: رياضيات):");
+    } else if (action === "delete_subject_list") {
+      await listSubjectsForDeletion(chatId);
+    } else if (action === "upload_schedule") {
+      userStates[chatId] = { step: "WAITING_FOR_SCHEDULE_TITLE" };
+      bot?.sendMessage(chatId, "📅 أرسل عنوان الجدول الدراسي (مثال: جدول الأسبوع الأول):");
+    } else if (action === "delete_schedule_list") {
+      await listSchedulesForDeletion(chatId);
     } else if (action === "daily_stats") {
       try {
         const presenceSnap = await getDocs(collection(db, "presence"));
@@ -227,6 +237,24 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       } catch (e) {
         bot?.sendMessage(chatId, "❌ حدث خطأ أثناء الحذف.");
       }
+    } else if (action.startsWith("del_subj_")) {
+      const subjectId = action.replace("del_subj_", "");
+      try {
+        await deleteDoc(doc(db, "subjects", subjectId));
+        bot?.sendMessage(chatId, "✅ تم حذف المادة بنجاح.");
+        await listSubjectsForDeletion(chatId);
+      } catch (e) {
+        bot?.sendMessage(chatId, "❌ فشل حذف المادة.");
+      }
+    } else if (action.startsWith("del_sched_")) {
+      const scheduleId = action.replace("del_sched_", "");
+      try {
+        await deleteDoc(doc(db, "schedules", scheduleId));
+        bot?.sendMessage(chatId, "✅ تم حذف الجدول بنجاح.");
+        await listSchedulesForDeletion(chatId);
+      } catch (e) {
+        bot?.sendMessage(chatId, "❌ فشل حذف الجدول.");
+      }
     }
 
     bot?.answerCallbackQuery(query.id);
@@ -304,6 +332,28 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         } catch (error: any) {
           bot?.sendMessage(chatId, `❌ فشل إضافة المادة: ${error.message || error}`);
         }
+      }
+    } else if (state.step === "WAITING_FOR_SCHEDULE_TITLE") {
+      userStates[chatId] = { step: "WAITING_FOR_SCHEDULE_URL", data: { title: text } };
+      bot?.sendMessage(chatId, `✅ تم حفظ العنوان: ${text}\n🖼️ الآن أرسل رابط صورة الجدول (أو ملف):`);
+    } else if (state.step === "WAITING_FOR_SCHEDULE_URL") {
+      if (!text.startsWith("http")) {
+        bot?.sendMessage(chatId, "❌ يرجى إرسال رابط صحيح.");
+        return;
+      }
+      try {
+        const id = Date.now().toString();
+        await setDoc(doc(db, "schedules", id), {
+          id,
+          title: state.data.title,
+          imageUrl: text,
+          timestamp: new Date().toISOString()
+        });
+        bot?.sendMessage(chatId, "✅ تم رفع الجدول الدراسي بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } catch (error: any) {
+        bot?.sendMessage(chatId, `❌ فشل الرفع: ${error.message || error}`);
       }
     } else if (state.step === "WAITING_FOR_DEV_NAME") {
       userStates[chatId] = { step: "WAITING_FOR_DEV_IMAGE", data: { name: text } };
@@ -397,6 +447,44 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       setTimeout(() => sendMainMenu(chatId), 1000);
     } catch (error) {
       bot?.sendMessage(chatId, "❌ خطأ في جلب البيانات.");
+    }
+  }
+
+  async function listSubjectsForDeletion(chatId: number) {
+    try {
+      const snapshot = await getDocs(collection(db, "subjects"));
+      if (snapshot.empty) {
+        bot?.sendMessage(chatId, "📭 لا توجد مواد لحذفها.");
+        return;
+      }
+      const buttons = snapshot.docs.map(doc => ([{
+        text: `🗑️ حذف: ${doc.data().name}`,
+        callback_data: `del_subj_${doc.id}`
+      }]));
+      bot?.sendMessage(chatId, "📚 اختر المادة التي تريد حذفها:", {
+        reply_markup: { inline_keyboard: buttons }
+      });
+    } catch (e) {
+      bot?.sendMessage(chatId, "❌ فشل جلب المواد.");
+    }
+  }
+
+  async function listSchedulesForDeletion(chatId: number) {
+    try {
+      const snapshot = await getDocs(collection(db, "schedules"));
+      if (snapshot.empty) {
+        bot?.sendMessage(chatId, "📭 لا توجد جداول لحذفها.");
+        return;
+      }
+      const buttons = snapshot.docs.map(doc => ([{
+        text: `🗑️ حذف: ${doc.data().title}`,
+        callback_data: `del_sched_${doc.id}`
+      }]));
+      bot?.sendMessage(chatId, "📅 اختر الجدول الذي تريد حذفه:", {
+        reply_markup: { inline_keyboard: buttons }
+      });
+    } catch (e) {
+      bot?.sendMessage(chatId, "❌ فشل جلب الجداول.");
     }
   }
 

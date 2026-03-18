@@ -67,5 +67,11 @@ service cloud.firestore {
       allow read: if true; // Publicly readable
       allow write: if true; // Clients can update progress
     }
+
+    // Schedule rules
+    match /schedules/{scheduleId} {
+      allow read: if true; // Publicly readable
+      allow write: if true; // Bot can add schedules
+    }
   }
 }

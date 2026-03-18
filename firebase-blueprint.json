@@ -70,6 +70,18 @@
         "studyHours": { "type": "object", "description": "Map of unit name to hours." }
       },
       "required": ["sessionId", "subjectId"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "A study schedule image or file for students.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "imageUrl"]
     }
   },
   "firestore": {
@@ -96,6 +108,10 @@
     "/progress/{progressId}": {
       "schema": "UserProgress",
       "description": "Student progress tracking."
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "Schedule",
+      "description": "Study schedules uploaded by the bot."
     }
   }
 }

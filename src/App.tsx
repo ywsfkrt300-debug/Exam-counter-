@@ -3,8 +3,11 @@ import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverT
 import { db } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -39,6 +42,13 @@ interface Subject {
   id: string;
   name: string;
   units: string[];
+}
+
+interface Schedule {
+  id: string;
+  title: string;
+  imageUrl: string;
+  timestamp: any;
 }
 
 interface UserProgress {
@@ -94,13 +104,29 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
-  const [page, setPage] = useState<'home' | 'about' | 'study'>('home');
+  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>('home');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [userCount, setUserCount] = useState(0);
   const [presenceData, setPresenceData] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [userProgress, setUserProgress] = useState<{ [key: string]: UserProgress }>({});
   const [sessionId, setSessionId] = useState(localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
+  const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('soundEnabled') !== 'false');
+
+  // Sounds
+  const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
+  const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', { volume: 0.5, soundEnabled });
+  const [playTransition] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.3, soundEnabled });
+
+  useEffect(() => {
+    localStorage.setItem('soundEnabled', String(soundEnabled));
+  }, [soundEnabled]);
+
+  const handlePageChange = (newPage: typeof page) => {
+    playTransition();
+    setPage(newPage);
+  };
 
   useEffect(() => {
     // Session ID for presence
@@ -199,6 +225,11 @@ export default function App() {
       setUserProgress(progress);
     });
 
+    // Listen for schedules
+    const unsubscribeSchedules = onSnapshot(query(collection(db, 'schedules'), orderBy('timestamp', 'desc')), (snapshot) => {
+      setSchedules(snapshot.docs.map(doc => doc.data() as Schedule));
+    });
+
     return () => {
       window.removeEventListener('beforeunload', cleanup);
       unsubscribeExams();
@@ -207,6 +238,7 @@ export default function App() {
       unsubscribePresence();
       unsubscribeSubjects();
       unsubscribeProgress();
+      unsubscribeSchedules();
       cleanup();
     };
   }, []);
@@ -238,6 +270,7 @@ export default function App() {
   const prevExam = () => setCurrentIndex((prev) => (prev - 1 + exams.length) % exams.length);
 
   const toggleUnit = async (subjectId: string, unit: string) => {
+    playClick();
     const current = userProgress[subjectId] || { sessionId, subjectId, completedUnits: [], studyHours: {} };
     const completed = [...current.completedUnits];
     const index = completed.indexOf(unit);
@@ -245,8 +278,30 @@ export default function App() {
       completed.splice(index, 1);
     } else {
       completed.push(unit);
+      playSuccess();
     }
     await setDoc(doc(db, 'progress', `${sessionId}_${subjectId}`), { ...current, completedUnits: completed }, { merge: true });
+  };
+
+  const downloadScheduleAsPDF = async (scheduleId: string, title: string) => {
+    playClick();
+    const element = document.getElementById(`schedule-${scheduleId}`);
+    if (!element) return;
+
+    try {
+      const canvas = await html2canvas(element, { useCORS: true, scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${title}.pdf`);
+      playSuccess();
+    } catch (e) {
+      console.error("PDF generation failed", e);
+    }
   };
 
   const setHours = async (subjectId: string, unit: string, hours: number) => {
@@ -284,7 +339,14 @@ export default function App() {
       {/* Header Controls */}
       <div className="absolute top-6 left-6 flex gap-3 z-20">
         <button 
-          onClick={() => setPage(page === 'home' ? 'about' : 'home')}
+          onClick={() => setSoundEnabled(!soundEnabled)}
+          className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
+          title={soundEnabled ? 'كتم الصوت' : 'تفعيل الصوت'}
+        >
+          {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+        </button>
+        <button 
+          onClick={() => handlePageChange(page === 'home' ? 'about' : 'home')}
           className={cn(
             "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
             page === 'about' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
@@ -294,7 +356,7 @@ export default function App() {
           <User size={20} />
         </button>
         <button 
-          onClick={() => setPage(page === 'home' ? 'study' : 'home')}
+          onClick={() => handlePageChange(page === 'home' ? 'study' : 'home')}
           className={cn(
             "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
             page === 'study' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
@@ -303,9 +365,19 @@ export default function App() {
         >
           <BookOpen size={20} />
         </button>
+        <button 
+          onClick={() => handlePageChange(page === 'home' ? 'schedules' : 'home')}
+          className={cn(
+            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
+            page === 'schedules' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
+          )}
+          title="الجداول الدراسية"
+        >
+          <FileText size={20} />
+        </button>
         {page === 'home' && (
           <button 
-            onClick={() => setViewMode(viewMode === 'single' ? 'grid' : 'single')}
+            onClick={() => { playClick(); setViewMode(viewMode === 'single' ? 'grid' : 'single'); }}
             className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
             title={viewMode === 'single' ? 'عرض الشبكة' : 'عرض منفرد'}
           >
@@ -483,6 +555,57 @@ export default function App() {
                     </motion.div>
                   );
                 })}
+              </div>
+            </motion.div>
+          ) : page === 'schedules' ? (
+            <motion.div 
+              key="schedules-page"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.1 }}
+              className="flex flex-col gap-8"
+            >
+              <div className="text-center mb-4">
+                <h2 className="text-4xl md:text-6xl font-black text-white mb-2">الجداول الدراسية</h2>
+                <p className="text-zinc-400">هنا تجد الجداول التي تساعدك في تنظيم وقتك. يمكنك تحميلها بصيغة PDF.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {schedules.length === 0 ? (
+                  <div className="col-span-full p-12 bg-white/5 border border-white/10 rounded-[2rem] text-center">
+                    <p className="text-zinc-500">لا توجد جداول دراسية مضافة حالياً.</p>
+                  </div>
+                ) : schedules.map((schedule, idx) => (
+                  <motion.div 
+                    key={schedule.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="p-6 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-xl group overflow-hidden"
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold text-white">{schedule.title}</h3>
+                      <button 
+                        onClick={() => downloadScheduleAsPDF(schedule.id, schedule.title)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20"
+                      >
+                        <Download size={16} />
+                        تحميل PDF
+                      </button>
+                    </div>
+                    <div 
+                      id={`schedule-${schedule.id}`}
+                      className="relative rounded-xl overflow-hidden border border-white/5 bg-zinc-900"
+                    >
+                      <img 
+                        src={schedule.imageUrl} 
+                        alt={schedule.title}
+                        className="w-full h-auto object-contain max-h-[500px]"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           ) : exams.length === 0 ? (
