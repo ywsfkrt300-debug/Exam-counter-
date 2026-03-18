@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverT
 import { db } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -24,6 +24,8 @@ interface Settings {
   theme?: string;
   maintenanceMode?: boolean;
   overlayImageUrl?: string;
+  developerName?: string;
+  developerImageUrl?: string;
 }
 
 interface Notification {
@@ -78,6 +80,7 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
+  const [page, setPage] = useState<'home' | 'about'>('home');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [userCount, setUserCount] = useState(0);
 
@@ -215,12 +218,21 @@ export default function App() {
       {/* Header Controls */}
       <div className="absolute top-6 left-6 flex gap-3 z-20">
         <button 
-          onClick={() => setViewMode(viewMode === 'single' ? 'grid' : 'single')}
+          onClick={() => setPage(page === 'home' ? 'about' : 'home')}
           className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
-          title={viewMode === 'single' ? 'عرض الشبكة' : 'عرض منفرد'}
+          title={page === 'home' ? 'من نحن' : 'الرئيسية'}
         >
-          {viewMode === 'single' ? <LayoutGrid size={20} /> : <Maximize2 size={20} />}
+          {page === 'home' ? <User size={20} /> : <Home size={20} />}
         </button>
+        {page === 'home' && (
+          <button 
+            onClick={() => setViewMode(viewMode === 'single' ? 'grid' : 'single')}
+            className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
+            title={viewMode === 'single' ? 'عرض الشبكة' : 'عرض منفرد'}
+          >
+            {viewMode === 'single' ? <LayoutGrid size={20} /> : <Maximize2 size={20} />}
+          </button>
+        )}
       </div>
 
       {/* Notification Banner */}
@@ -253,7 +265,50 @@ export default function App() {
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
         <AnimatePresence mode="wait">
-          {exams.length === 0 ? (
+          {page === 'about' ? (
+            <motion.div 
+              key="about-page"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex flex-col items-center text-center"
+            >
+              <div className="p-8 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[3rem] max-w-2xl w-full shadow-2xl">
+                <div className="mb-8 relative inline-block">
+                  <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full" />
+                  <img 
+                    src={settings.developerImageUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"} 
+                    alt="Developer" 
+                    className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-white/20 shadow-2xl object-cover relative z-10"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <h2 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">
+                  {settings.developerName || "اسم المطور"}
+                </h2>
+                <div className="h-1 w-12 bg-emerald-500 mx-auto mb-6 rounded-full" />
+                <p className="text-zinc-300 text-lg leading-relaxed mb-8">
+                  مرحباً بكم في منصتنا! نحن نسعى جاهدين لتوفير أفضل الأدوات للطلاب لمساعدتهم في تنظيم أوقاتهم والاستعداد للامتحانات بكل ثقة. هذا المشروع هو نتاج شغفنا بالتعليم والتكنولوجيا.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <h4 className="text-emerald-400 font-bold mb-1">الرؤية</h4>
+                    <p className="text-xs text-zinc-400">تسهيل الوصول للمعلومات الدراسية</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <h4 className="text-emerald-400 font-bold mb-1">الهدف</h4>
+                    <p className="text-xs text-zinc-400">دعم الطلاب في رحلتهم التعليمية</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setPage('home')}
+                  className="mt-10 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
+                >
+                  العودة للرئيسية
+                </button>
+              </div>
+            </motion.div>
+          ) : exams.length === 0 ? (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

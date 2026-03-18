@@ -36,6 +36,7 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
           [{ text: "🛠️ وضع الصيانة (تفعيل/تعطيل)", callback_data: "toggle_maintenance" }],
           [{ text: "📊 إحصائيات الزوار", callback_data: "user_stats" }],
           [{ text: "🖼️ صورة فوق العداد", callback_data: "set_overlay" }],
+          [{ text: "👨‍💻 تحديث بيانات المطور", callback_data: "set_dev_info" }],
           [{ text: "👥 عدد المستخدمين", callback_data: "user_count" }],
           [{ text: "🖼️ تغيير خلفية الموقع", callback_data: "set_bg" }],
           [{ text: "❓ مساعدة", callback_data: "help" }]
@@ -77,6 +78,9 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
       } catch (e) {
         bot?.sendMessage(chatId, "❌ فشل تغيير وضع الصيانة.");
       }
+    } else if (action === "set_dev_info") {
+      userStates[chatId] = { step: "WAITING_FOR_DEV_NAME" };
+      bot?.sendMessage(chatId, "👨‍💻 حسناً، أرسل اسم المطور الجديد:");
     } else if (action === "set_overlay") {
       userStates[chatId] = { step: "WAITING_FOR_OVERLAY_URL" };
       bot?.sendMessage(chatId, "🖼️ أرسل رابط الصورة الذي تريد وضعه فوق العداد (أو أرسل 'حذف' لإزالتها):");
@@ -240,6 +244,25 @@ if (token && token !== "YOUR_TELEGRAM_BOT_TOKEN") {
         sendMainMenu(chatId);
       } catch (error: any) {
         bot?.sendMessage(chatId, `❌ فشل إرسال الإشعار: ${error.message || error}`);
+      }
+    } else if (state.step === "WAITING_FOR_DEV_NAME") {
+      userStates[chatId] = { step: "WAITING_FOR_DEV_IMAGE", data: { name: text } };
+      bot?.sendMessage(chatId, `✅ تم حفظ الاسم: ${text}\n🖼️ الآن أرسل رابط صورة المطور:`);
+    } else if (state.step === "WAITING_FOR_DEV_IMAGE") {
+      if (!text.startsWith("http")) {
+        bot?.sendMessage(chatId, "❌ يرجى إرسال رابط صحيح يبدأ بـ http أو https");
+        return;
+      }
+      try {
+        await setDoc(doc(db, "settings", "config"), { 
+          developerName: state.data.name,
+          developerImageUrl: text 
+        }, { merge: true });
+        bot?.sendMessage(chatId, "✅ تم تحديث بيانات المطور بنجاح!");
+        delete userStates[chatId];
+        sendMainMenu(chatId);
+      } catch (error: any) {
+        bot?.sendMessage(chatId, `❌ فشل التحديث: ${error.message || error}`);
       }
     } else if (state.step === "WAITING_FOR_OVERLAY_URL") {
       if (text === "حذف") {

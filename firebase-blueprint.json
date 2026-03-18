@@ -20,7 +20,9 @@
         "backgroundUrl": { "type": "string", "description": "URL of the background image." },
         "theme": { "type": "string", "enum": ["light", "dark", "glass"], "description": "The visual theme of the app." },
         "maintenanceMode": { "type": "boolean", "description": "Whether the site is in maintenance mode." },
-        "overlayImageUrl": { "type": "string", "description": "URL of an image to display above the countdown." }
+        "overlayImageUrl": { "type": "string", "description": "URL of an image to display above the countdown." },
+        "developerName": { "type": "string", "description": "Name of the developer." },
+        "developerImageUrl": { "type": "string", "description": "URL of the developer's image." }
       }
     },
     "Notification": {
