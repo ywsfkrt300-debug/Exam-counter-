@@ -35,13 +35,25 @@ service cloud.firestore {
     // Exam rules
     match /exams/{examId} {
       allow read: if true; // Publicly readable
-      allow write: if isAdmin(); // Only admin can modify
+      allow write: if true; // Temporary allow for bot writes
     }
 
     // Settings rules
     match /settings/config {
       allow read: if true; // Publicly readable
-      allow write: if isAdmin(); // Only admin can modify
+      allow write: if true; // Temporary allow for bot writes
+    }
+
+    // Notification rules
+    match /notifications/{notificationId} {
+      allow read: if true; // Publicly readable
+      allow write: if true; // Bot can send notifications
+    }
+
+    // Presence rules
+    match /presence/{sessionId} {
+      allow read: if true; // Bot can count users
+      allow write: if true; // Clients can update presence
     }
   }
 }

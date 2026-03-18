@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from './firebase';
-import { formatDistanceToNow, differenceInSeconds, intervalToDuration } from 'date-fns';
+import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, Image as ImageIcon, Settings, ChevronRight, ChevronLeft, LayoutGrid, Maximize2 } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -22,17 +22,54 @@ interface Exam {
 interface Settings {
   backgroundUrl?: string;
   theme?: string;
+  maintenanceMode?: boolean;
+  overlayImageUrl?: string;
+}
+
+interface Notification {
+  id: string;
+  message: string;
+  timestamp: any;
 }
 
 const CountdownBox = ({ value, label }: { value: number; label: string }) => (
-  <div className="flex flex-col items-center justify-center p-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl min-w-[100px] shadow-xl">
-    <span className="text-4xl md:text-6xl font-bold text-white tabular-nums">
+  <div className="flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl min-w-[120px] shadow-2xl group transition-all hover:border-emerald-500/50">
+    <span className="text-5xl md:text-7xl font-black text-white tabular-nums tracking-tighter group-hover:text-emerald-400 transition-colors">
       {String(value).padStart(2, '0')}
     </span>
-    <span className="text-xs md:text-sm uppercase tracking-widest text-white/70 mt-1 font-bold">
+    <div className="h-px w-8 bg-white/20 my-3 group-hover:w-12 group-hover:bg-emerald-500/50 transition-all" />
+    <span className="text-[10px] md:text-xs uppercase tracking-[0.2em] text-white/40 font-bold group-hover:text-white/60 transition-colors">
       {label}
     </span>
   </div>
+);
+
+const MaintenanceOverlay = () => (
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-6 text-center"
+  >
+    <div className="absolute inset-0 opacity-20 pointer-events-none" 
+      style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} 
+    />
+    <motion.div 
+      animate={{ rotate: [0, 5, -5, 0] }}
+      transition={{ repeat: Infinity, duration: 4 }}
+      className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mb-8 border border-emerald-500/20"
+    >
+      <ShieldAlert size={48} className="text-emerald-500" />
+    </motion.div>
+    <h1 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight">الموقع في وضع الصيانة</h1>
+    <p className="text-zinc-400 text-lg max-w-md leading-relaxed">
+      نحن نقوم ببعض التحديثات والتحسينات لضمان أفضل تجربة لكم. سنعود قريباً جداً!
+    </p>
+    <div className="mt-12 flex gap-2">
+      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse delay-75" />
+      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse delay-150" />
+    </div>
+  </motion.div>
 );
 
 export default function App() {
@@ -41,11 +78,55 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [userCount, setUserCount] = useState(0);
 
   useEffect(() => {
+    // Session ID for presence
+    const sessionId = Math.random().toString(36).substring(7);
+    const presenceRef = doc(db, 'presence', sessionId);
+
+    const updatePresence = async () => {
+      try {
+        // Fetch IP and location info
+        let ip = 'Unknown';
+        let governorate = 'Unknown';
+        try {
+          const res = await fetch('https://ipapi.co/json/');
+          const data = await res.json();
+          ip = data.ip || 'Unknown';
+          governorate = data.region || data.city || 'Unknown';
+        } catch (e) {
+          console.error("Location fetch failed", e);
+        }
+
+        await setDoc(presenceRef, { 
+          id: sessionId, 
+          lastSeen: serverTimestamp(),
+          ip,
+          governorate
+        }, { merge: true });
+      } catch (e) {
+        console.error("Presence update failed", e);
+      }
+    };
+
+    updatePresence();
+    const heartbeat = setInterval(updatePresence, 30000); // Heartbeat every 30s
+
+    // Cleanup presence on unmount
+    const cleanup = async () => {
+      clearInterval(heartbeat);
+      try {
+        await deleteDoc(presenceRef);
+      } catch (e) {}
+    };
+
+    window.addEventListener('beforeunload', cleanup);
+
     // Listen for exams
-    const q = query(collection(db, 'exams'), orderBy('targetDate', 'asc'));
-    const unsubscribeExams = onSnapshot(q, (snapshot) => {
+    const qExams = query(collection(db, 'exams'), orderBy('targetDate', 'asc'));
+    const unsubscribeExams = onSnapshot(qExams, (snapshot) => {
       const examsData = snapshot.docs.map(doc => doc.data() as Exam);
       setExams(examsData);
     });
@@ -57,9 +138,34 @@ export default function App() {
       }
     });
 
+    // Listen for notifications
+    const qNotifs = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(1));
+    const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
+      if (!snapshot.empty) {
+        const data = snapshot.docs[0].data() as Notification;
+        setNotification(data);
+        
+        // Auto-hide notification after 10 seconds
+        const timer = setTimeout(() => {
+          setNotification(null);
+        }, 10000);
+        
+        return () => clearTimeout(timer);
+      }
+    });
+
+    // Listen for user count
+    const unsubscribePresence = onSnapshot(collection(db, 'presence'), (snapshot) => {
+      setUserCount(snapshot.size);
+    });
+
     return () => {
+      cleanup();
+      window.removeEventListener('beforeunload', cleanup);
       unsubscribeExams();
       unsubscribeSettings();
+      unsubscribeNotifs();
+      unsubscribePresence();
     };
   }, []);
 
@@ -71,8 +177,13 @@ export default function App() {
       const now = new Date();
       
       if (target > now) {
-        const duration = intervalToDuration({ start: now, end: target });
-        setTimeLeft(duration);
+        const totalSeconds = differenceInSeconds(target, now);
+        const days = Math.floor(totalSeconds / (24 * 3600));
+        const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        
+        setTimeLeft({ days, hours, minutes, seconds });
       } else {
         setTimeLeft(null);
       }
@@ -96,19 +207,48 @@ export default function App() {
         backgroundPosition: 'center',
       }}
     >
+      {settings.maintenanceMode && <MaintenanceOverlay />}
+
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
 
       {/* Header Controls */}
       <div className="absolute top-6 left-6 flex gap-3 z-20">
         <button 
           onClick={() => setViewMode(viewMode === 'single' ? 'grid' : 'single')}
-          className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all border border-white/20"
+          className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
           title={viewMode === 'single' ? 'عرض الشبكة' : 'عرض منفرد'}
         >
           {viewMode === 'single' ? <LayoutGrid size={20} /> : <Maximize2 size={20} />}
         </button>
       </div>
+
+      {/* Notification Banner */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className="absolute top-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-xl px-6"
+          >
+            <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-4 shadow-2xl">
+              <div className="p-2 bg-emerald-500 rounded-xl text-white">
+                <Bell size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="text-white text-sm font-medium">{notification.message}</p>
+              </div>
+              <button 
+                onClick={() => setNotification(null)}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                ×
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
@@ -132,6 +272,20 @@ export default function App() {
               className="flex flex-col items-center"
             >
               <div className="text-center mb-12">
+                {settings.overlayImageUrl && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mb-8 flex justify-center"
+                  >
+                    <img 
+                      src={settings.overlayImageUrl} 
+                      alt="Overlay" 
+                      className="max-w-[200px] md:max-w-[300px] h-auto rounded-2xl shadow-2xl border border-white/10"
+                      referrerPolicy="no-referrer"
+                    />
+                  </motion.div>
+                )}
                 <motion.div 
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -218,20 +372,9 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      {/* Footer Info */}
-      <div className="absolute bottom-6 right-6 flex items-center gap-4 z-20">
-        <div className="flex flex-col">
-          <span className="text-white/40 text-[10px] uppercase tracking-widest font-bold">الحالة</span>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-white/80 text-xs font-medium">تحديثات مباشرة نشطة</span>
-          </div>
-        </div>
-      </div>
-
       <div className="absolute bottom-6 left-6 z-20">
-         <p className="text-white/30 text-[10px] uppercase tracking-widest font-bold">
-           المسؤول: استخدم بوت التليجرام للتحديث
+         <p className="text-white/10 text-[10px] uppercase tracking-widest font-bold">
+           &copy; {new Date().getFullYear()} نظام إدارة الامتحانات
          </p>
       </div>
     </div>

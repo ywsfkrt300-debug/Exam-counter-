@@ -18,8 +18,33 @@
       "type": "object",
       "properties": {
         "backgroundUrl": { "type": "string", "description": "URL of the background image." },
-        "theme": { "type": "string", "enum": ["light", "dark", "glass"], "description": "The visual theme of the app." }
+        "theme": { "type": "string", "enum": ["light", "dark", "glass"], "description": "The visual theme of the app." },
+        "maintenanceMode": { "type": "boolean", "description": "Whether the site is in maintenance mode." },
+        "overlayImageUrl": { "type": "string", "description": "URL of an image to display above the countdown." }
       }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A message or announcement to display on the website.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "message", "timestamp"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "Tracking active user sessions with location data.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "ip": { "type": "string", "description": "User's IP address." },
+        "governorate": { "type": "string", "description": "User's location/governorate." }
+      },
+      "required": ["id", "lastSeen"]
     }
   },
   "firestore": {
@@ -30,6 +55,14 @@
     "/settings/config": {
       "schema": "Setting",
       "description": "Global application settings."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Announcements sent from the bot."
+    },
+    "/presence/{sessionId}": {
+      "schema": "Presence",
+      "description": "Active user sessions for counting."
     }
   }
 }
