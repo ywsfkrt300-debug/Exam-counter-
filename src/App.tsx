@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -31,6 +31,10 @@ interface Settings {
   overlayImageUrl?: string;
   developerName?: string;
   developerImageUrl?: string;
+  facebookUrl?: string;
+  whatsappUrl?: string;
+  privacyPolicy?: string;
+  termsOfService?: string;
   fontFamily?: string;
 }
 
@@ -55,18 +59,21 @@ interface Schedule {
 
 interface UserProgress {
   sessionId: string;
-  subjectId: string;
+  subjectId?: string;
   completedUnits: string[];
   studyHours: { [key: string]: number };
 }
 
-const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'admin' } = {
+const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'admin' | 'contact' | 'privacy' | 'terms' } = {
   '/': 'home',
   '/الرئيسية': 'home',
   '/عن-الموقع': 'about',
   '/الدراسة': 'study',
   '/الجداول': 'schedules',
   '/لوحة-التحكم': 'admin',
+  '/تواصل-معنا': 'contact',
+  '/سياسة-الخصوصية': 'privacy',
+  '/شروط-الخدمة': 'terms',
   '/admin': 'admin'
 };
 
@@ -75,7 +82,10 @@ const REVERSE_PAGE_MAP: { [key: string]: string } = {
   'about': '/عن-الموقع',
   'study': '/الدراسة',
   'schedules': '/الجداول',
-  'admin': '/لوحة-التحكم'
+  'admin': '/لوحة-التحكم',
+  'contact': '/تواصل-معنا',
+  'privacy': '/سياسة-الخصوصية',
+  'terms': '/شروط-الخدمة'
 };
 
 const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void }) => {
@@ -726,6 +736,42 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط فيسبوك</label>
+                        <input 
+                          type="text"
+                          value={settings.facebookUrl || ''}
+                          onChange={(e) => setSettings({ ...settings, facebookUrl: e.target.value })}
+                          className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط واتساب</label>
+                        <input 
+                          type="text"
+                          value={settings.whatsappUrl || ''}
+                          onChange={(e) => setSettings({ ...settings, whatsappUrl: e.target.value })}
+                          className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">سياسة الخصوصية</label>
+                      <textarea 
+                        value={settings.privacyPolicy || ''}
+                        onChange={(e) => setSettings({ ...settings, privacyPolicy: e.target.value })}
+                        className="w-full h-32 p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm resize-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">شروط الخدمة</label>
+                      <textarea 
+                        value={settings.termsOfService || ''}
+                        onChange={(e) => setSettings({ ...settings, termsOfService: e.target.value })}
+                        className="w-full h-32 p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">اسم المطور</label>
                         <input 
                           type="text"
@@ -791,16 +837,19 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
   );
 };
 
-const CountdownBox = ({ value, label }: { value: number; label: string }) => (
-  <div className="flex flex-col items-center justify-center p-6 bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl min-w-[120px] shadow-2xl group transition-all hover:border-emerald-500/50">
-    <span className="text-5xl md:text-7xl font-black text-white tabular-nums tracking-tighter group-hover:text-emerald-400 transition-colors">
+const CountdownBox = ({ value, label, color }: { value: number; label: string; color?: string }) => (
+  <motion.div 
+    whileHover={{ y: -5, scale: 1.02 }}
+    className="flex flex-col items-center gap-4 p-8 bg-white/5 backdrop-blur-xl rounded-[3rem] border border-white/10 hover:border-white/20 transition-all group/unit shadow-2xl"
+  >
+    <div className={cn(
+      "text-5xl md:text-7xl font-black bg-gradient-to-br bg-clip-text text-transparent drop-shadow-sm transition-all duration-500",
+      color || "from-white to-zinc-500"
+    )}>
       {String(value).padStart(2, '0')}
-    </span>
-    <div className="h-px w-8 bg-white/20 my-3 group-hover:w-12 group-hover:bg-emerald-500/50 transition-all" />
-    <span className="text-[10px] md:text-xs uppercase tracking-[0.2em] text-white/40 font-bold group-hover:text-white/60 transition-colors">
-      {label}
-    </span>
-  </div>
+    </div>
+    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] group-hover/unit:text-white transition-colors">{label}</span>
+  </motion.div>
 );
 
 const MaintenanceOverlay = () => (
@@ -831,6 +880,88 @@ const MaintenanceOverlay = () => (
   </motion.div>
 );
 
+const ContactUs = ({ settings }: { settings: Settings }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="max-w-4xl mx-auto space-y-8 p-6"
+  >
+    <div className="text-center space-y-4">
+      <h1 className="text-4xl font-bold text-white drop-shadow-lg">تواصل معنا</h1>
+      <p className="text-zinc-300 text-lg">نحن هنا لمساعدتك في أي وقت. تواصل مع المطور عبر القنوات التالية:</p>
+    </div>
+
+    <div className="grid md:grid-cols-2 gap-6">
+      {settings.facebookUrl && (
+        <a
+          href={settings.facebookUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-4 p-6 bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-blue-500 hover:bg-blue-500/10 transition-all group"
+        >
+          <div className="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+            <Facebook className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="font-black text-white text-xl">فيسبوك</h3>
+            <p className="text-sm text-zinc-400">تابعنا للحصول على آخر التحديثات</p>
+          </div>
+        </a>
+      )}
+
+      {settings.whatsappUrl && (
+        <a
+          href={`https://wa.me/${settings.whatsappUrl.replace(/\D/g, '')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-4 p-6 bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-emerald-500 hover:bg-emerald-500/10 transition-all group"
+        >
+          <div className="w-14 h-14 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+            <MessageCircle className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="font-black text-white text-xl">واتساب</h3>
+            <p className="text-sm text-zinc-400">تواصل مباشر وسريع</p>
+          </div>
+        </a>
+      )}
+    </div>
+
+    <div className="bg-white/5 backdrop-blur-md rounded-[2.5rem] p-10 text-center space-y-6 border border-white/10">
+      <div className="w-20 h-20 bg-indigo-500/20 rounded-3xl flex items-center justify-center text-indigo-400 mx-auto">
+        <Mail className="w-10 h-10" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-2xl font-black text-white">هل لديك استفسار آخر؟</h3>
+        <p className="text-zinc-400 text-lg">يمكنك مراسلتنا عبر البريد الإلكتروني أو من خلال وسائل التواصل أعلاه.</p>
+      </div>
+      <button className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-lg shadow-indigo-600/20">
+        إرسال بريد إلكتروني
+      </button>
+    </div>
+  </motion.div>
+);
+
+const PolicyPage = ({ title, content }: { title: string; content: string }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    className="max-w-4xl mx-auto p-6"
+  >
+    <div className="bg-black/40 backdrop-blur-3xl rounded-[3rem] border border-white/10 p-8 md:p-16 shadow-2xl">
+      <div className="flex items-center gap-4 mb-10 pb-6 border-b border-white/10">
+        <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500">
+          <ShieldCheck className="w-6 h-6" />
+        </div>
+        <h1 className="text-4xl font-black text-white tracking-tight">{title}</h1>
+      </div>
+      <div className="prose prose-invert max-w-none whitespace-pre-wrap text-zinc-300 leading-relaxed text-lg">
+        {content || "سيتم إضافة المحتوى قريباً..."}
+      </div>
+    </div>
+  </motion.div>
+);
+
 export default function App() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [settings, setSettings] = useState<Settings>({ backgroundUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=1920', theme: 'glass' });
@@ -838,7 +969,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
   const [isAdminMode, setIsAdminMode] = useState(PAGE_MAP[window.location.pathname] === 'admin');
-  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules'>(
+  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules' | 'contact' | 'privacy' | 'terms'>(
     (PAGE_MAP[window.location.pathname] as any) || 'home'
   );
   const [sessionId] = useState(() => localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
@@ -850,6 +981,19 @@ export default function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error'>('connected');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+    }
+  }, [theme]);
 
   const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
   const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.5, soundEnabled });
@@ -988,15 +1132,14 @@ export default function App() {
     });
 
     // Listen for user progress
-    const unsubscribeProgress = onSnapshot(collection(db, 'progress'), (snapshot) => {
-      const progress: { [key: string]: UserProgress } = {};
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as UserProgress;
-        if (data.sessionId === sId) {
-          progress[data.subjectId] = data;
-        }
-      });
-      setUserProgress(progress);
+    const unsubscribeProgress = onSnapshot(doc(db, 'progress', sId), (snapshot) => {
+      if (snapshot.exists()) {
+        setUserProgress(snapshot.data() as UserProgress);
+      } else {
+        const initial: UserProgress = { sessionId: sId, completedUnits: [], studyHours: {} };
+        setDoc(doc(db, 'progress', sId), initial);
+        setUserProgress(initial);
+      }
     });
 
     // Listen for schedules
@@ -1044,17 +1187,19 @@ export default function App() {
   const prevExam = () => setCurrentIndex((prev) => (prev - 1 + exams.length) % exams.length);
 
   const toggleUnit = async (subjectId: string, unit: string) => {
+    if (!userProgress) return;
     playClick();
-    const current = userProgress[subjectId] || { sessionId, subjectId, completedUnits: [], studyHours: {} };
-    const completed = [...current.completedUnits];
-    const index = completed.indexOf(unit);
-    if (index > -1) {
-      completed.splice(index, 1);
-    } else {
-      completed.push(unit);
+    const unitKey = `${subjectId}-${unit}`;
+    const completedUnits = userProgress.completedUnits.includes(unitKey)
+      ? userProgress.completedUnits.filter(u => u !== unitKey)
+      : [...userProgress.completedUnits, unitKey];
+    
+    const newProgress = { ...userProgress, completedUnits };
+    setUserProgress(newProgress);
+    await setDoc(doc(db, 'progress', sessionId), newProgress);
+    if (!userProgress.completedUnits.includes(unitKey)) {
       playSuccess();
     }
-    await setDoc(doc(db, 'progress', `${sessionId}_${subjectId}`), { ...current, completedUnits: completed }, { merge: true });
   };
 
   const downloadScheduleAsPDF = async (scheduleId: string, title: string) => {
@@ -1079,9 +1224,13 @@ export default function App() {
   };
 
   const setHours = async (subjectId: string, unit: string, hours: number) => {
-    const current = userProgress[subjectId] || { sessionId, subjectId, completedUnits: [], studyHours: {} };
-    const studyHours = { ...current.studyHours, [unit]: hours };
-    await setDoc(doc(db, 'progress', `${sessionId}_${subjectId}`), { ...current, studyHours }, { merge: true });
+    if (!userProgress) return;
+    const newProgress = {
+      ...userProgress,
+      studyHours: { ...userProgress.studyHours, [`${subjectId}-${unit}`]: hours }
+    };
+    setUserProgress(newProgress);
+    await setDoc(doc(db, 'progress', sessionId), newProgress);
   };
 
   const getGovStats = () => {
@@ -1127,56 +1276,106 @@ export default function App() {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
 
       {/* Header Controls */}
-      <div className="absolute top-6 left-6 flex items-center gap-3 z-20">
+      <div className="absolute top-6 left-6 flex items-center gap-3 z-50">
         {connectionStatus === 'error' && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-full text-red-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
             <ShieldAlert size={12} />
             خطأ في الاتصال
           </div>
         )}
-        <button 
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-all border border-white/10"
-          title={soundEnabled ? 'كتم الصوت' : 'تفعيل الصوت'}
-        >
-          {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-        </button>
-        <button 
-          onClick={() => handlePageChange(page === 'home' ? 'about' : 'home')}
-          className={cn(
-            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
-            page === 'about' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
-          )}
-          title="من نحن"
-        >
-          <User size={20} />
-        </button>
-        <button 
-          onClick={() => handlePageChange(page === 'home' ? 'study' : 'home')}
-          className={cn(
-            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
-            page === 'study' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
-          )}
-          title="الدراسة"
-        >
-          <BookOpen size={20} />
-        </button>
-        <button 
-          onClick={() => handlePageChange(page === 'home' ? 'schedules' : 'home')}
-          className={cn(
-            "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
-            page === 'schedules' ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
-          )}
-          title="الجداول"
-        >
-          <Calendar size={20} />
-        </button>
+        
+        <div className="relative">
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={cn(
+              "p-3 backdrop-blur-md rounded-full text-white transition-all border border-white/10",
+              isMenuOpen ? "bg-emerald-500 border-emerald-500" : "bg-white/5 hover:bg-white/10"
+            )}
+            title="القائمة"
+          >
+            {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="absolute top-full mt-4 left-0 w-64 bg-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col gap-2"
+              >
+                {[
+                  { id: 'home', label: 'الرئيسية', icon: Home },
+                  { id: 'study', label: 'الدراسة', icon: BookOpen },
+                  { id: 'schedules', label: 'الجداول', icon: Calendar },
+                  { id: 'about', label: 'من نحن', icon: User },
+                  { id: 'contact', label: 'تواصل معنا', icon: Phone },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => { handlePageChange(item.id as any); setIsMenuOpen(false); }}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all",
+                      page === item.id ? "bg-emerald-500/20 text-emerald-400" : "text-white/70 hover:bg-white/5 hover:text-white"
+                    )}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </button>
+                ))}
+
+                <div className="h-px w-full bg-white/10 my-2" />
+
+                {[
+                  { id: 'privacy', label: 'سياسة الخصوصية', icon: Shield },
+                  { id: 'terms', label: 'شروط الاستخدام', icon: FileText },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => { handlePageChange(item.id as any); setIsMenuOpen(false); }}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all",
+                      page === item.id ? "bg-emerald-500/20 text-emerald-400" : "text-white/70 hover:bg-white/5 hover:text-white"
+                    )}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </button>
+                ))}
+
+                <div className="h-px w-full bg-white/10 my-2" />
+
+                <button
+                  onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setIsMenuOpen(false); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                >
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                  {theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن'}
+                </button>
+
+                <button
+                  onClick={() => { setSoundEnabled(!soundEnabled); setIsMenuOpen(false); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                >
+                  {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                  {soundEnabled ? 'كتم الصوت' : 'تفعيل الصوت'}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
         <AnimatePresence mode="wait">
-          {page === 'about' ? (
+          {page === 'contact' ? (
+            <ContactUs settings={settings} />
+          ) : page === 'privacy' ? (
+            <PolicyPage title="سياسة الخصوصية" content={settings.privacyPolicy} />
+          ) : page === 'terms' ? (
+            <PolicyPage title="شروط الاستخدام" content={settings.termsOfService} />
+          ) : page === 'about' ? (
             <motion.div 
               key="about-page"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1305,8 +1504,8 @@ export default function App() {
                     <p className="text-zinc-500 text-xl font-bold">لا توجد مواد دراسية مضافة حالياً. يرجى مراجعة الإدارة.</p>
                   </div>
                 ) : subjects.map((subject, sIdx) => {
-                  const progress = userProgress[subject.id] || { completedUnits: [], studyHours: {} };
-                  const percent = Math.round((progress.completedUnits.length / subject.units.length) * 100) || 0;
+                  const completedUnits = userProgress?.completedUnits.filter(u => u.startsWith(`${subject.id}-`)) || [];
+                  const percent = Math.round((completedUnits.length / subject.units.length) * 100) || 0;
                   
                   return (
                     <motion.div 
@@ -1340,8 +1539,9 @@ export default function App() {
                       
                       <div className="space-y-4">
                         {subject.units.map((unit, uIdx) => {
-                          const isDone = progress.completedUnits.includes(unit);
-                          const hours = progress.studyHours[unit] || 0;
+                          const unitKey = `${subject.id}-${unit}`;
+                          const isDone = userProgress?.completedUnits.includes(unitKey);
+                          const hours = userProgress?.studyHours[unitKey] || 0;
                           
                           return (
                             <div key={`${subject.id}-${unit}-${uIdx}`} className="flex flex-col gap-4 p-6 bg-white/5 rounded-[2rem] border border-white/5 hover:border-emerald-500/20 transition-all group/unit">
@@ -1465,91 +1665,120 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 1.05, y: -20 }}
               transition={{ type: "spring", damping: 20, stiffness: 100 }}
-              className="flex flex-col items-center"
+              className="flex flex-col items-center gap-16"
             >
-              <div className="text-center mb-12 relative">
+              <div className="text-center space-y-8 max-w-4xl relative">
                 {settings.overlayImageUrl && (
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
                     animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    className="mb-10 flex justify-center relative"
+                    className="mb-12 flex justify-center relative"
                   >
                     <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full" />
                     <img 
                       src={settings.overlayImageUrl} 
                       alt="Overlay" 
-                      className="max-w-[220px] md:max-w-[340px] h-auto rounded-[2rem] shadow-2xl border border-white/10 relative z-10 hover:scale-105 transition-transform duration-500"
+                      className="max-w-[220px] md:max-w-[340px] h-auto rounded-[3rem] shadow-2xl border border-white/10 relative z-10 hover:scale-105 transition-transform duration-700"
                       referrerPolicy="no-referrer"
                     />
                   </motion.div>
                 )}
-                <motion.div 
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="inline-flex items-center gap-3 px-6 py-2 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 text-white/90 text-sm mb-8 shadow-xl"
-                >
-                  <Calendar size={16} className="text-emerald-400" />
-                  <span className="font-bold">{new Date(currentExam.targetDate).toLocaleDateString('ar-EG', { dateStyle: 'full' })}</span>
-                </motion.div>
-                <h1 className="text-6xl md:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] uppercase leading-none">
-                  {currentExam.name}
-                </h1>
-                <p className="text-xl md:text-3xl text-white/70 font-medium max-w-3xl mx-auto leading-relaxed">
-                  {currentExam.description || "بدأ العد التنازلي. حافظ على تركيزك واستمر في التقدم نحو النجاح."}
-                </p>
+                
+                <div className="space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="inline-flex items-center gap-3 px-6 py-2 bg-white/5 backdrop-blur-xl rounded-full border border-white/10 shadow-2xl"
+                  >
+                    <Calendar size={14} className="text-emerald-400" />
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">
+                      موعد الامتحان: {new Date(currentExam.targetDate).toLocaleDateString('ar-EG', { dateStyle: 'full' })}
+                    </span>
+                  </motion.div>
+                  
+                  <h1 className="text-6xl md:text-9xl font-black text-white tracking-tighter leading-[0.9] drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)] uppercase">
+                    {currentExam.name}
+                  </h1>
+                  
+                  <p className="text-zinc-400 text-xl md:text-2xl font-medium leading-relaxed max-w-2xl mx-auto drop-shadow-lg">
+                    {currentExam.description || "بدأ العد التنازلي. حافظ على تركيزك واستمر في التقدم نحو النجاح."}
+                  </p>
+                </div>
               </div>
 
               {timeLeft ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 w-full max-w-5xl">
-                  <CountdownBox value={timeLeft.days || 0} label="أيام" />
-                  <CountdownBox value={timeLeft.hours || 0} label="ساعات" />
-                  <CountdownBox value={timeLeft.minutes || 0} label="دقائق" />
-                  <CountdownBox value={timeLeft.seconds || 0} label="ثواني" />
+                  <CountdownBox value={timeLeft.days || 0} label="أيام" color="from-emerald-400 to-emerald-600" />
+                  <CountdownBox value={timeLeft.hours || 0} label="ساعات" color="from-indigo-400 to-indigo-600" />
+                  <CountdownBox value={timeLeft.minutes || 0} label="دقائق" color="from-purple-400 to-purple-600" />
+                  <CountdownBox value={timeLeft.seconds || 0} label="ثواني" color="from-pink-400 to-pink-600" />
                 </div>
               ) : (
                 <motion.div 
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="p-12 bg-emerald-500/20 backdrop-blur-2xl border border-emerald-500/40 rounded-[3rem] text-center shadow-2xl relative overflow-hidden group"
+                  className="p-16 bg-emerald-500/20 backdrop-blur-3xl border border-emerald-500/40 rounded-[4rem] text-center shadow-2xl relative overflow-hidden group"
                 >
                   <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
-                  <div className="relative z-10">
-                    <h2 className="text-5xl md:text-7xl font-black text-white mb-4">بدأ الامتحان!</h2>
-                    <p className="text-emerald-200 text-xl font-bold">كل التوفيق لجميع الطلاب في مسيرتهم.</p>
+                  <div className="relative z-10 space-y-4">
+                    <h2 className="text-6xl md:text-8xl font-black text-white tracking-tight">بدأ الامتحان!</h2>
+                    <p className="text-emerald-200 text-2xl font-bold">كل التوفيق لجميع الطلاب في مسيرتهم.</p>
                   </div>
                 </motion.div>
               )}
 
-              {/* Navigation */}
-              {exams.length > 1 && (
-                <div className="flex items-center gap-12 mt-20">
-                  <button 
-                    onClick={prevExam}
-                    className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20"
-                  >
-                    <ChevronRight size={28} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <div className="flex gap-3">
-                    {exams.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setCurrentIndex(idx)}
-                        className={cn(
-                          "h-2 rounded-full transition-all duration-500",
-                          idx === currentIndex ? "bg-emerald-500 w-12 shadow-lg shadow-emerald-500/50" : "bg-white/20 w-3 hover:bg-white/40"
-                        )}
-                      />
-                    ))}
+              {/* Navigation & Actions */}
+              <div className="flex flex-col items-center gap-12 w-full max-w-5xl">
+                {exams.length > 1 && (
+                  <div className="flex items-center gap-10">
+                    <button 
+                      onClick={prevExam}
+                      className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20 active:scale-95"
+                    >
+                      <ChevronRight size={28} className="group-hover:translate-x-1 transition-transform" />
+                    </button>
+                    <div className="flex gap-3">
+                      {exams.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentIndex(idx)}
+                          className={cn(
+                            "h-2 rounded-full transition-all duration-700",
+                            idx === currentIndex ? "bg-emerald-500 w-12 shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "bg-white/10 w-3 hover:bg-white/30"
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <button 
+                      onClick={nextExam}
+                      className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20 active:scale-95"
+                    >
+                      <ChevronLeft size={28} className="group-hover:-translate-x-1 transition-transform" />
+                    </button>
                   </div>
-                  <button 
-                    onClick={nextExam}
-                    className="p-5 bg-white/5 hover:bg-emerald-500 backdrop-blur-xl rounded-full text-white transition-all border border-white/10 group shadow-xl hover:shadow-emerald-500/20"
-                  >
-                    <ChevronLeft size={28} className="group-hover:-translate-x-1 transition-transform" />
-                  </button>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                  {[
+                    { label: 'ابدأ الدراسة', icon: BookOpen, page: 'study', color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20' },
+                    { label: 'عرض الجداول', icon: Calendar, page: 'schedules', color: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' },
+                    { label: 'من نحن', icon: User, page: 'about', color: 'bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20' }
+                  ].map((btn, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handlePageChange(btn.page as any)}
+                      className={cn(
+                        "flex items-center justify-center gap-4 p-8 rounded-[2.5rem] text-white font-black text-xl transition-all shadow-2xl hover:-translate-y-2 group",
+                        btn.color
+                      )}
+                    >
+                      <btn.icon size={28} className="group-hover:scale-110 transition-transform" />
+                      <span>{btn.label}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </motion.div>
           ) : (
             <div key="exams-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1588,19 +1817,29 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <div className="absolute bottom-6 left-6 z-20 flex items-center gap-4">
-         <p className="text-white/10 text-[10px] uppercase tracking-widest font-bold">
-           &copy; {new Date().getFullYear()} نظام إدارة الامتحانات
-         </p>
-         <button 
-           onClick={() => {
-             window.history.pushState({}, '', '/لوحة-التحكم');
-             window.dispatchEvent(new PopStateEvent('popstate'));
-           }}
-           className="text-white/5 hover:text-white/20 transition-colors text-[10px] uppercase tracking-widest font-bold"
-         >
-           Admin
-         </button>
+      <div className="absolute bottom-0 left-0 w-full z-20 p-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-t from-black/80 to-transparent backdrop-blur-[2px]">
+        <div className="flex items-center gap-6 text-xs font-bold text-white/60">
+          <button onClick={() => handlePageChange('privacy')} className="hover:text-white transition-colors flex items-center gap-2"><Shield size={14} /> سياسة الخصوصية</button>
+          <button onClick={() => handlePageChange('terms')} className="hover:text-white transition-colors flex items-center gap-2"><FileText size={14} /> شروط الاستخدام</button>
+          <button onClick={() => handlePageChange('contact')} className="hover:text-white transition-colors flex items-center gap-2"><Phone size={14} /> تواصل معنا</button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <p className="text-white/40 text-[10px] uppercase tracking-widest font-bold">
+            &copy; {new Date().getFullYear()} {settings.siteName || "نظام إدارة الامتحانات"}
+          </p>
+          <div className="w-1 h-1 rounded-full bg-white/20 hidden md:block" />
+          <button 
+            onClick={() => {
+              window.history.pushState({}, '', '/لوحة-التحكم');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            className="text-white/20 hover:text-white/60 transition-colors text-[10px] uppercase tracking-widest font-bold flex items-center gap-1"
+          >
+            <LayoutGrid size={12} />
+            Admin
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -7,3 +7,58 @@
   --font-tajawal: "Tajawal", sans-serif;
   --font-amiri: "Amiri", serif;
 }
+
+/* Light Mode Overrides */
+.light-mode {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+/* Backgrounds */
+.light-mode .bg-zinc-950 { background-color: #f8fafc !important; }
+.light-mode .bg-zinc-900 { background-color: #ffffff !important; }
+.light-mode .bg-zinc-800 { background-color: #f1f5f9 !important; }
+.light-mode .bg-black\/40 { background-color: rgba(255,255,255,0.4) !important; }
+.light-mode .bg-black\/60 { background-color: rgba(255,255,255,0.6) !important; }
+.light-mode .bg-black\/80 { background-color: rgba(255,255,255,0.8) !important; }
+.light-mode .bg-white\/5 { background-color: rgba(0,0,0,0.05) !important; }
+.light-mode .bg-white\/10 { background-color: rgba(0,0,0,0.1) !important; }
+.light-mode .hover\:bg-white\/5:hover { background-color: rgba(0,0,0,0.05) !important; }
+.light-mode .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.1) !important; }
+
+/* Borders */
+.light-mode .border-white\/5 { border-color: rgba(0,0,0,0.05) !important; }
+.light-mode .border-white\/10 { border-color: rgba(0,0,0,0.1) !important; }
+.light-mode .border-white\/20 { border-color: rgba(0,0,0,0.2) !important; }
+.light-mode .border-white\/30 { border-color: rgba(0,0,0,0.3) !important; }
+
+/* Text Colors */
+.light-mode .text-white { color: #0f172a !important; }
+.light-mode .bg-emerald-600.text-white,
+.light-mode .bg-emerald-600 .text-white,
+.light-mode .bg-emerald-500.text-white,
+.light-mode .bg-emerald-500 .text-white,
+.light-mode .bg-indigo-600.text-white,
+.light-mode .bg-indigo-600 .text-white,
+.light-mode .bg-blue-600.text-white,
+.light-mode .bg-blue-600 .text-white,
+.light-mode .bg-red-600.text-white,
+.light-mode .bg-red-600 .text-white,
+.light-mode .bg-amber-600.text-white,
+.light-mode .bg-amber-600 .text-white {
+  color: #ffffff !important;
+}
+
+.light-mode .text-zinc-400 { color: #475569 !important; }
+.light-mode .text-zinc-300 { color: #334155 !important; }
+.light-mode .text-zinc-500 { color: #64748b !important; }
+.light-mode .text-zinc-200 { color: #1e293b !important; }
+
+/* Opacity variants of white text */
+.light-mode .text-white\/70 { color: rgba(0,0,0,0.7) !important; }
+.light-mode .text-white\/60 { color: rgba(0,0,0,0.6) !important; }
+.light-mode .text-white\/50 { color: rgba(0,0,0,0.5) !important; }
+.light-mode .text-white\/40 { color: rgba(0,0,0,0.4) !important; }
+.light-mode .text-white\/20 { color: rgba(0,0,0,0.2) !important; }
+.light-mode .text-white\/10 { color: rgba(0,0,0,0.1) !important; }
+.light-mode .text-white\/5 { color: rgba(0,0,0,0.05) !important; }
