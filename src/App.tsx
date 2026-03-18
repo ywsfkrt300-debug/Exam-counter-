@@ -54,6 +54,7 @@ interface Schedule {
   id: string;
   title: string;
   imageUrl: string;
+  fileType?: 'image' | 'pdf';
   timestamp: any;
 }
 
@@ -190,9 +191,10 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
     }
   };
 
-  const addSubject = async (name: string) => {
+  const addSubject = async (name: string, unitsCount: number) => {
     const id = name.toLowerCase().replace(/\s+/g, '-');
-    await setDoc(doc(db, 'subjects', id), { name, units: [] });
+    const units = Array.from({ length: unitsCount }, (_, i) => `الوحدة ${i + 1}`);
+    await setDoc(doc(db, 'subjects', id), { name, units });
   };
 
   const addExam = async (name: string, date: string, desc: string) => {
@@ -200,19 +202,20 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
     await setDoc(doc(db, 'exams', id), { name, targetDate: date, description: desc });
   };
 
-  const addUnit = async (subjectId: string, unitName: string) => {
+  const addUnit = async (subjectId: string) => {
     const subject = subjects.find(s => s.id === subjectId);
     if (subject) {
+      const nextUnitNumber = subject.units.length + 1;
       await setDoc(doc(db, 'subjects', subjectId), { 
         ...subject, 
-        units: [...subject.units, unitName] 
+        units: [...subject.units, `الوحدة ${nextUnitNumber}`] 
       });
     }
   };
 
-  const addSchedule = async (title: string, imageUrl: string) => {
+  const addSchedule = async (title: string, imageUrl: string, fileType: 'image' | 'pdf' = 'image') => {
     const id = Date.now().toString();
-    await setDoc(doc(db, 'schedules', id), { title, imageUrl, timestamp: serverTimestamp() });
+    await setDoc(doc(db, 'schedules', id), { title, imageUrl, fileType, timestamp: serverTimestamp() });
   };
 
   const sendNotification = async (message: string) => {
@@ -430,7 +433,11 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
                 <button 
                   onClick={() => {
                     const name = prompt('اسم المادة:');
-                    if (name) addSubject(name);
+                    if (name) {
+                      const countStr = prompt('كم وحدة ينقسم الكتاب؟');
+                      const count = parseInt(countStr || '0', 10);
+                      addSubject(name, isNaN(count) ? 0 : count);
+                    }
                   }}
                   className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
@@ -455,10 +462,7 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
                           <span key={i} className="px-3 py-1.5 bg-black/40 border border-white/5 rounded-xl text-xs text-zinc-400 font-medium">{u}</span>
                         ))}
                         <button 
-                          onClick={() => {
-                            const unit = prompt('اسم الوحدة:');
-                            if (unit) addUnit(s.id, unit);
-                          }}
+                          onClick={() => addUnit(s.id)}
                           className="px-3 py-1.5 border border-dashed border-white/20 rounded-xl text-xs text-zinc-500 hover:text-white hover:border-white transition-all"
                         >
                           + إضافة وحدة
@@ -481,12 +485,30 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
             >
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الجداول</h2>
-                <button 
-                  onClick={() => {
+                <input 
+                  type="file" 
+                  accept="image/*,application/pdf" 
+                  id="schedule-upload" 
+                  className="hidden" 
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
                     const title = prompt('عنوان الجدول:');
-                    const url = prompt('رابط الصورة:');
-                    if (title && url) addSchedule(title, url);
-                  }}
+                    if (!title) return;
+                    
+                    try {
+                      const storageRef = ref(storage, `schedules/${Date.now()}_${file.name}`);
+                      await uploadBytes(storageRef, file);
+                      const url = await getDownloadURL(storageRef);
+                      const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+                      await addSchedule(title, url, fileType);
+                    } catch (err) {
+                      alert('فشل الرفع');
+                    }
+                  }} 
+                />
+                <button 
+                  onClick={() => document.getElementById('schedule-upload')?.click()}
                   className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
                   <Calendar size={20} />
@@ -497,14 +519,28 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {schedules.map(s => (
                   <div key={s.id} className="p-4 bg-zinc-900 border border-white/10 rounded-[2rem] space-y-4 shadow-xl overflow-hidden group">
-                    <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/5">
-                      <img src={s.imageUrl} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                    <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/5 bg-black/20 flex items-center justify-center">
+                      {s.fileType === 'pdf' ? (
+                        <div className="flex flex-col items-center justify-center text-emerald-500">
+                          <FileText size={48} className="mb-2" />
+                          <span className="font-bold text-sm">ملف PDF</span>
+                        </div>
+                      ) : (
+                        <img src={s.imageUrl} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                       <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
                         <h4 className="font-bold text-lg text-white">{s.title}</h4>
-                        <button onClick={() => deleteItem('schedules', s.id)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all backdrop-blur-md">
-                          حذف
-                        </button>
+                        <div className="flex gap-2">
+                          {s.fileType === 'pdf' && (
+                            <a href={s.imageUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-500/20 hover:bg-blue-500 text-blue-500 hover:text-white rounded-xl transition-all backdrop-blur-md">
+                              <Download size={16} />
+                            </a>
+                          )}
+                          <button onClick={() => deleteItem('schedules', s.id)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all backdrop-blur-md">
+                            حذف
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1202,9 +1238,15 @@ export default function App() {
     }
   };
 
-  const downloadScheduleAsPDF = async (scheduleId: string, title: string) => {
+  const downloadScheduleAsPDF = async (schedule: Schedule) => {
     playClick();
-    const element = document.getElementById(`schedule-${scheduleId}`);
+    if (schedule.fileType === 'pdf') {
+      window.open(schedule.imageUrl, '_blank');
+      playSuccess();
+      return;
+    }
+
+    const element = document.getElementById(`schedule-${schedule.id}`);
     if (!element) return;
 
     try {
@@ -1216,7 +1258,7 @@ export default function App() {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${title}.pdf`);
+      pdf.save(`${schedule.title}.pdf`);
       playSuccess();
     } catch (e) {
       console.error("PDF generation failed", e);
@@ -1622,7 +1664,7 @@ export default function App() {
                         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">تاريخ الإضافة: {schedule.timestamp?.toDate ? schedule.timestamp.toDate().toLocaleDateString('ar-EG') : 'N/A'}</p>
                       </div>
                       <button 
-                        onClick={() => downloadScheduleAsPDF(schedule.id, schedule.title)}
+                        onClick={() => downloadScheduleAsPDF(schedule)}
                         className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-black transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                       >
                         <Download size={18} />
@@ -1631,15 +1673,23 @@ export default function App() {
                     </div>
                     <div 
                       id={`schedule-${schedule.id}`}
-                      className="relative rounded-[2rem] overflow-hidden border border-white/10 bg-zinc-950 shadow-inner group/img"
+                      className="relative rounded-[2rem] overflow-hidden border border-white/10 bg-zinc-950 shadow-inner group/img flex items-center justify-center min-h-[300px]"
                     >
                       <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover/img:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                      <img 
-                        src={schedule.imageUrl} 
-                        alt={schedule.title}
-                        className="w-full h-auto object-contain max-h-[600px] transition-transform duration-700 group-hover/img:scale-105"
-                        referrerPolicy="no-referrer"
-                      />
+                      {schedule.fileType === 'pdf' ? (
+                        <div className="flex flex-col items-center justify-center text-emerald-500 p-12">
+                          <FileText size={80} className="mb-4 opacity-80" />
+                          <span className="font-bold text-xl text-white">ملف PDF</span>
+                          <span className="text-zinc-500 text-sm mt-2">انقر على زر التحميل لعرض الملف</span>
+                        </div>
+                      ) : (
+                        <img 
+                          src={schedule.imageUrl} 
+                          alt={schedule.title}
+                          className="w-full h-auto object-contain max-h-[600px] transition-transform duration-700 group-hover/img:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
                     </div>
                   </motion.div>
                 ))}

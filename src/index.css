@@ -34,17 +34,20 @@
 
 /* Text Colors */
 .light-mode .text-white { color: #0f172a !important; }
-.light-mode .bg-emerald-600.text-white,
+.light-mode .bg-emerald-600,
+.light-mode .bg-emerald-500,
+.light-mode .bg-indigo-600,
+.light-mode .bg-blue-600,
+.light-mode .bg-red-600,
+.light-mode .bg-amber-600 {
+  color: #ffffff !important;
+}
+
 .light-mode .bg-emerald-600 .text-white,
-.light-mode .bg-emerald-500.text-white,
 .light-mode .bg-emerald-500 .text-white,
-.light-mode .bg-indigo-600.text-white,
 .light-mode .bg-indigo-600 .text-white,
-.light-mode .bg-blue-600.text-white,
 .light-mode .bg-blue-600 .text-white,
-.light-mode .bg-red-600.text-white,
 .light-mode .bg-red-600 .text-white,
-.light-mode .bg-amber-600.text-white,
 .light-mode .bg-amber-600 .text-white {
   color: #ffffff !important;
 }
