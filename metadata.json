@@ -1,0 +1,5 @@
+{
+  "name": "Exam Countdown Timer",
+  "description": "A beautiful, real-time countdown timer for exams, controlled via a Telegram Bot.",
+  "requestFramePermissions": []
+}

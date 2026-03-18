@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: exams
+    // Document ID: {examId}
+    // Fields:
+    //   - id: string (required) - Unique ID
+    //   - name: string (required) - Exam name
+    //   - targetDate: string (required) - ISO 8601 date-time
+    //   - description: string (optional) - Description
+    //
+    // Collection: settings
+    // Document ID: config
+    // Fields:
+    //   - backgroundUrl: string (optional) - Background image URL
+    //   - theme: string (optional) - Theme name (light, dark, glass)
+    //
+    // ===============================================================
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == "ywsfkrt300@gmail.com" && request.auth.token.email_verified == true
+      );
+    }
+
+    // Exam rules
+    match /exams/{examId} {
+      allow read: if true; // Publicly readable
+      allow write: if isAdmin(); // Only admin can modify
+    }
+
+    // Settings rules
+    match /settings/config {
+      allow read: if true; // Publicly readable
+      allow write: if isAdmin(); // Only admin can modify
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "Exam": {
+      "title": "Exam",
+      "description": "An exam with a target date for the countdown.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the exam." },
+        "name": { "type": "string", "description": "Name of the exam (e.g., Ninth Grade, Baccalaureate)." },
+        "targetDate": { "type": "string", "format": "date-time", "description": "The date and time of the exam." },
+        "description": { "type": "string", "description": "Optional description of the exam." }
+      },
+      "required": ["id", "name", "targetDate"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Application-wide settings.",
+      "type": "object",
+      "properties": {
+        "backgroundUrl": { "type": "string", "description": "URL of the background image." },
+        "theme": { "type": "string", "enum": ["light", "dark", "glass"], "description": "The visual theme of the app." }
+      }
+    }
+  },
+  "firestore": {
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Collection of exams to count down to."
+    },
+    "/settings/config": {
+      "schema": "Setting",
+      "description": "Global application settings."
+    }
+  }
+}
