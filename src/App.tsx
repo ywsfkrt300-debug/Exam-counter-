@@ -485,30 +485,15 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
             >
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الجداول</h2>
-                <input 
-                  type="file" 
-                  accept="image/*,application/pdf" 
-                  id="schedule-upload" 
-                  className="hidden" 
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
+                <button 
+                  onClick={() => {
                     const title = prompt('عنوان الجدول:');
                     if (!title) return;
-                    
-                    try {
-                      const storageRef = ref(storage, `schedules/${Date.now()}_${file.name}`);
-                      await uploadBytes(storageRef, file);
-                      const url = await getDownloadURL(storageRef);
-                      const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
-                      await addSchedule(title, url, fileType);
-                    } catch (err) {
-                      alert('فشل الرفع');
-                    }
-                  }} 
-                />
-                <button 
-                  onClick={() => document.getElementById('schedule-upload')?.click()}
+                    const url = prompt('رابط الملف (PDF أو صورة):');
+                    if (!url) return;
+                    const fileType = url.toLowerCase().includes('.pdf') ? 'pdf' : 'image';
+                    addSchedule(title, url, fileType);
+                  }}
                   className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
                   <Calendar size={20} />
