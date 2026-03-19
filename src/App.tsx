@@ -6,8 +6,6 @@ import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -1348,30 +1346,32 @@ export default function App() {
     }
   };
 
-  const downloadScheduleAsPDF = async (schedule: Schedule) => {
+  const downloadSchedule = async (schedule: Schedule) => {
     playClick();
-    if (schedule.fileType === 'pdf') {
-      window.open(schedule.imageUrl, '_blank');
-      playSuccess();
-      return;
-    }
-
-    const element = document.getElementById(`schedule-${schedule.id}`);
-    if (!element) return;
-
     try {
-      const canvas = await html2canvas(element, { useCORS: true, scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const response = await fetch(schedule.imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${schedule.title}.pdf`);
+      let ext = schedule.fileType === 'pdf' ? 'pdf' : 'png';
+      if (schedule.fileType !== 'pdf') {
+        if (blob.type.includes('jpeg') || blob.type.includes('jpg')) ext = 'jpg';
+        else if (blob.type.includes('png')) ext = 'png';
+        else if (blob.type.includes('webp')) ext = 'webp';
+      }
+      
+      link.download = `${schedule.title}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
       playSuccess();
     } catch (e) {
-      console.error("PDF generation failed", e);
+      console.error("Download failed", e);
+      window.open(schedule.imageUrl, '_blank');
+      playSuccess();
     }
   };
 
@@ -1795,11 +1795,11 @@ export default function App() {
                         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">تاريخ الإضافة: {schedule.timestamp?.toDate ? schedule.timestamp.toDate().toLocaleDateString('ar-EG') : 'N/A'}</p>
                       </div>
                       <button 
-                        onClick={() => downloadScheduleAsPDF(schedule)}
+                        onClick={() => downloadSchedule(schedule)}
                         className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-black transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                       >
                         <Download size={18} />
-                        تحميل PDF
+                        تحميل الملف
                       </button>
                     </div>
                     <div 
