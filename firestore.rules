@@ -16,6 +16,33 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Public Data
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /exams/{examId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User Data
+    match /presence/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /progress/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Logs
+    match /logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
