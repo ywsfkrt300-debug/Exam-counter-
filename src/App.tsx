@@ -4,7 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -36,6 +36,8 @@ interface Settings {
   privacyPolicy?: string;
   termsOfService?: string;
   fontFamily?: string;
+  siteName?: string;
+  blockedIPs?: string[];
 }
 
 interface Notification {
@@ -89,7 +91,7 @@ const REVERSE_PAGE_MAP: { [key: string]: string } = {
   'terms': '/شروط-الخدمة'
 };
 
-const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void }) => {
+const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void, presenceData: any[] }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -229,6 +231,22 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
     }
   };
 
+  const blockIp = async (ip: string) => {
+    if (window.confirm(`هل أنت متأكد من حظر IP: ${ip}؟`)) {
+      const newBlocked = [...(settings.blockedIPs || []), ip];
+      await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
+      setSettings({ ...settings, blockedIPs: newBlocked });
+    }
+  };
+
+  const unblockIp = async (ip: string) => {
+    if (window.confirm(`هل أنت متأكد من فك الحظر عن IP: ${ip}؟`)) {
+      const newBlocked = (settings.blockedIPs || []).filter(b => b !== ip);
+      await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
+      setSettings({ ...settings, blockedIPs: newBlocked });
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
@@ -324,6 +342,7 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
             { id: 'notifications', label: 'التنبيهات', icon: Bell },
             { id: 'uploads', label: 'رفع الملفات', icon: Download },
             { id: 'logs', label: 'السجلات', icon: FileText },
+            { id: 'security', label: 'الأمان والزوار', icon: Shield },
             { id: 'settings', label: 'الإعدادات', icon: Maximize2 },
           ].map(tab => (
             <button
@@ -718,6 +737,104 @@ const AdminDashboard = ({ onExit, settings, setSettings }: { onExit: () => void,
             </motion.div>
           )}
 
+          {activeTab === 'security' && (
+            <motion.div 
+              key="security"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
+                  <Shield className="text-emerald-500" size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white">الأمان والزوار</h2>
+                  <p className="text-zinc-500 text-sm">مراقبة الأجهزة المتصلة وإدارة الحظر</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Active Visitors */}
+                <div className="bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <User size={20} className="text-emerald-500" />
+                      الزوار النشطون
+                    </h3>
+                    <span className="bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-full text-sm font-bold">
+                      {presenceData.length} متصل
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                    {presenceData.map((p, i) => {
+                      const isBlocked = settings.blockedIPs?.includes(p.ip);
+                      return (
+                        <div key={i} className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-sm text-emerald-400">{p.ip}</span>
+                              {isBlocked && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full font-bold">محظور</span>}
+                            </div>
+                            <div className="text-xs text-zinc-500 flex items-center gap-2">
+                              <MapIcon size={12} /> {p.governorate || 'غير معروف'}
+                              <span className="text-white/20">•</span>
+                              <Clock size={12} /> {p.lastSeen?.toDate ? formatDistanceToNow(p.lastSeen.toDate(), { addSuffix: true }) : 'الآن'}
+                            </div>
+                          </div>
+                          {!isBlocked && (
+                            <button 
+                              onClick={() => blockIp(p.ip)}
+                              className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                              title="حظر هذا الجهاز"
+                            >
+                              <Ban size={18} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {presenceData.length === 0 && (
+                      <div className="text-center py-8 text-zinc-500">لا يوجد زوار نشطون حالياً</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Blocked IPs */}
+                <div className="bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Ban size={20} className="text-red-500" />
+                      الأجهزة المحظورة
+                    </h3>
+                    <span className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-sm font-bold">
+                      {(settings.blockedIPs || []).length} محظور
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                    {(settings.blockedIPs || []).map((ip, i) => (
+                      <div key={i} className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-red-500/10">
+                        <span className="font-mono text-sm text-red-400">{ip}</span>
+                        <button 
+                          onClick={() => unblockIp(ip)}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold transition-all"
+                        >
+                          فك الحظر
+                        </button>
+                      </div>
+                    ))}
+                    {(!settings.blockedIPs || settings.blockedIPs.length === 0) && (
+                      <div className="text-center py-8 text-zinc-500">لا توجد أجهزة محظورة</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'settings' && (
             <motion.div 
               key="settings"
@@ -1003,6 +1120,7 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error'>('connected');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [userIp, setUserIp] = useState<string>('');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
@@ -1089,6 +1207,8 @@ export default function App() {
         } catch (e) {
           // Silent fail for location fetch - not critical for app functionality
         }
+
+        setUserIp(ip);
 
         await setDoc(presenceRef, { 
           id: sId, 
@@ -1275,10 +1395,31 @@ export default function App() {
   const currentExam = exams[currentIndex];
   const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
 
+  if (settings?.blockedIPs?.includes(userIp) && !isAdminMode) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="w-full max-w-md p-10 bg-zinc-900/80 backdrop-blur-2xl border border-red-500/20 rounded-[2.5rem] shadow-2xl relative z-10 text-center space-y-6">
+          <div className="w-24 h-24 bg-red-500/10 rounded-3xl flex items-center justify-center mx-auto border border-red-500/20 shadow-inner">
+            <Ban className="text-red-500" size={48} />
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tight">تم حظر وصولك</h1>
+          <p className="text-zinc-400 text-sm leading-relaxed">
+            لقد تم حظر عنوان IP الخاص بك من الوصول إلى هذا الموقع. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع الإدارة.
+          </p>
+          <div className="pt-4 border-t border-white/10">
+            <p className="text-xs text-zinc-500 font-mono">IP: {userIp}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isAdminMode) {
     return <AdminDashboard 
       settings={settings} 
       setSettings={setSettings} 
+      presenceData={presenceData}
       onExit={() => {
         window.history.pushState({}, '', '/الرئيسية');
         setIsAdminMode(false);
