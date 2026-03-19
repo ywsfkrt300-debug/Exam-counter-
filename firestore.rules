@@ -12,7 +12,7 @@ service cloud.firestore {
 
     // Notifications
     match /notifications/{notificationId} {
-      allow read, list: if true;
+      allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();
     }
 
@@ -32,16 +32,16 @@ service cloud.firestore {
 
     // User Data
     match /presence/{userId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
     match /presence {
-      allow list: if true;
+      allow list: if isAuthenticated();
     }
     match /progress/{userId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
     match /progress {
-      allow list: if true;
+      allow list: if isAuthenticated();
     }
     
     // Logs
