@@ -29,6 +29,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /settings/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // User Data
     match /presence/{userId} {
