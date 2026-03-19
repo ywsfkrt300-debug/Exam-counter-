@@ -1106,9 +1106,9 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
-  const [isAdminMode, setIsAdminMode] = useState(PAGE_MAP[window.location.pathname] === 'admin');
+  const [isAdminMode, setIsAdminMode] = useState(PAGE_MAP[decodeURIComponent(window.location.pathname)] === 'admin');
   const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules' | 'contact' | 'privacy' | 'terms'>(
-    (PAGE_MAP[window.location.pathname] as any) || 'home'
+    (PAGE_MAP[decodeURIComponent(window.location.pathname)] as any) || 'home'
   );
   const [sessionId] = useState(() => localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
   const [notification, setNotification] = useState<Notification | null>(null);
@@ -1143,7 +1143,7 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname;
+      const path = decodeURIComponent(window.location.pathname);
       const mappedPage = PAGE_MAP[path] || 'home';
       if (mappedPage === 'admin') {
         setIsAdminMode(true);
