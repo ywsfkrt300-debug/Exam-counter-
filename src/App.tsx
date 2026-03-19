@@ -4,7 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
@@ -104,6 +104,7 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -119,10 +120,14 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
       const unsubSchedules = onSnapshot(collection(db, 'schedules'), (snap) => {
         setSchedules(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
       });
+      const unsubNotifs = onSnapshot(query(collection(db, 'notifications'), orderBy('timestamp', 'desc')), (snap) => {
+        setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
+      });
       return () => {
         unsubSubjects();
         unsubExams();
         unsubSchedules();
+        unsubNotifs();
       };
     }
   }, [isLoggedIn]);
@@ -589,6 +594,45 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                   <Bell size={24} />
                   إرسال للجميع
                 </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center px-2">
+                  <h3 className="text-xl font-black">التنبيهات السابقة</h3>
+                  {notifications.length > 0 && (
+                    <button 
+                      onClick={async () => {
+                        if (window.confirm('هل أنت متأكد من حذف جميع التنبيهات؟')) {
+                          for (const n of notifications) {
+                            await deleteDoc(doc(db, 'notifications', n.id));
+                          }
+                        }
+                      }}
+                      className="text-xs font-black text-red-500 uppercase tracking-widest hover:underline"
+                    >
+                      حذف الكل
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {notifications.map(n => (
+                    <div key={n.id} className="p-4 bg-zinc-900 border border-white/10 rounded-2xl flex justify-between items-center gap-4 group">
+                      <p className="text-zinc-300 text-sm flex-1">{n.message}</p>
+                      <button 
+                        onClick={() => deleteItem('notifications', n.id)}
+                        className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all flex-shrink-0"
+                        title="حذف التنبيه"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                  {notifications.length === 0 && (
+                    <div className="p-8 bg-zinc-900/50 border border-dashed border-white/10 rounded-[2rem] text-center">
+                      <p className="text-zinc-500">لا توجد تنبيهات سابقة</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -1665,6 +1709,30 @@ export default function App() {
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
+        {/* Top Banner Images */}
+        {settings.overlayImageUrls && settings.overlayImageUrls.length > 0 && (
+          <div className="mb-12 space-y-6">
+            {settings.overlayImageUrls.map((url, index) => (
+              url && (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl group relative"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <img 
+                    src={url} 
+                    alt={`Banner ${index + 1}`} 
+                    className="w-full h-auto object-cover max-h-[400px]"
+                    referrerPolicy="no-referrer"
+                  />
+                </motion.div>
+              )
+            ))}
+          </div>
+        )}
+        
         <AnimatePresence mode="wait">
           {page === 'contact' ? (
             <ContactUs settings={settings} />
