@@ -32,16 +32,16 @@ service cloud.firestore {
 
     // User Data
     match /presence/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
     match /presence {
-      allow list: if isAuthenticated();
+      allow list: if true;
     }
     match /progress/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
     match /progress {
-      allow list: if isAuthenticated();
+      allow list: if true;
     }
     
     // Logs
