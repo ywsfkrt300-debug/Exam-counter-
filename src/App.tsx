@@ -29,6 +29,7 @@ interface Settings {
   overlayImageUrl?: string;
   developerName?: string;
   developerImageUrl?: string;
+  loadingImageUrl?: string;
   facebookUrl?: string;
   whatsappUrl?: string;
   privacyPolicy?: string;
@@ -872,6 +873,16 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                         className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط صورة التحميل (دائرة التحميل)</label>
+                      <input 
+                        type="text"
+                        value={settings.loadingImageUrl || ''}
+                        onChange={(e) => setSettings({ ...settings, loadingImageUrl: e.target.value })}
+                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                        placeholder="اتركه فارغاً لاستخدام دائرة التحميل الافتراضية"
+                      />
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط فيسبوك</label>
@@ -1102,7 +1113,15 @@ const PolicyPage = ({ title, content }: { title: string; content: string }) => (
 
 export default function App() {
   const [exams, setExams] = useState<Exam[]>([]);
-  const [settings, setSettings] = useState<Settings>({ backgroundUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=1920', theme: 'glass' });
+  const [settings, setSettings] = useState<Settings>(() => {
+    const cached = localStorage.getItem('appSettings');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return { backgroundUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=1920', theme: 'glass' };
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
@@ -1127,6 +1146,7 @@ export default function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(() => {
     return localStorage.getItem('privacyAccepted') !== 'true';
   });
+  const [isAppLoading, setIsAppLoading] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -1136,6 +1156,10 @@ export default function App() {
       document.documentElement.classList.remove('light-mode');
     }
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('appSettings', JSON.stringify(settings));
+  }, [settings]);
 
   const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
   const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.5, soundEnabled });
@@ -1246,6 +1270,7 @@ export default function App() {
       if (snapshot.exists()) {
         setSettings(snapshot.data() as Settings);
       }
+      setIsAppLoading(false);
     });
 
     // Listen for notifications
@@ -1396,6 +1421,33 @@ export default function App() {
 
   const currentExam = exams[currentIndex];
   const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
+
+  if (isAppLoading) {
+    return (
+      <div 
+        dir="rtl"
+        className={cn(
+          "min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center transition-all duration-1000",
+          fontClass
+        )}
+        style={{
+          backgroundImage: `url(${settings.backgroundUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+        <div className="relative z-10 flex flex-col items-center gap-6">
+          {settings.loadingImageUrl ? (
+            <img src={settings.loadingImageUrl} alt="Loading..." className="w-32 h-32 object-contain animate-pulse" />
+          ) : (
+            <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          )}
+          <p className="text-zinc-400 font-medium animate-pulse">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (settings?.blockedIPs?.includes(userIp) && !isAdminMode) {
     return (
