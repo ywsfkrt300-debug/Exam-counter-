@@ -1006,6 +1006,9 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
+  const [showPrivacyBanner, setShowPrivacyBanner] = useState(() => {
+    return localStorage.getItem('privacyAccepted') !== 'true';
+  });
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -1876,6 +1879,46 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPrivacyBanner && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[400px] z-[100] bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-6 rounded-3xl shadow-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-500">
+                <Shield size={24} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-white font-bold mb-2">سياسة الخصوصية وتتبع الموقع</h4>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-4">
+                  نحن نستخدم خدمات لتحديد موقعك الجغرافي (مثل ipapi) لأغراض الإحصائيات وتحسين تجربة الاستخدام. باستخدامك للموقع، فإنك توافق على ذلك.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('privacyAccepted', 'true');
+                      setShowPrivacyBanner(false);
+                    }}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition-all"
+                  >
+                    موافق
+                  </button>
+                  <button
+                    onClick={() => handlePageChange('privacy')}
+                    className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold text-sm transition-all"
+                  >
+                    اقرأ المزيد
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
