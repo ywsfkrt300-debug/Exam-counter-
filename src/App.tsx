@@ -1166,6 +1166,8 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error'>('connected');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [userIp, setUserIp] = useState<string>('');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
@@ -1301,11 +1303,12 @@ export default function App() {
     });
 
     // Listen for notifications
-    const qNotifs = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(1));
+    const qNotifs = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(10));
     const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
-      if (!snapshot.empty) {
-        const data = snapshot.docs[0].data() as Notification;
-        setNotification(data);
+      const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+      setNotifications(notifs);
+      if (notifs.length > 0) {
+        setNotification(notifs[0]);
         
         // Auto-hide notification after 10 seconds
         const timer = setTimeout(() => {
@@ -1529,12 +1532,56 @@ export default function App() {
 
       {/* Header Controls */}
       <div className="absolute top-6 left-6 flex items-center gap-3 z-50">
+        {/* Notification Icon */}
+        <div className="relative">
+          <button 
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className="p-3 bg-white/5 backdrop-blur-md rounded-full text-white transition-all border border-white/10 hover:bg-white/10"
+            title="الإشعارات"
+          >
+            <Bell size={20} />
+            {notification && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            )}
+          </button>
+        </div>
+
         {connectionStatus === 'error' && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-full text-red-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
             <ShieldAlert size={12} />
             خطأ في الاتصال
           </div>
         )}
+
+        {/* Notifications Panel */}
+        <AnimatePresence>
+          {isNotificationsOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="absolute top-full mt-4 left-0 w-80 bg-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col gap-4 z-50"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-white font-bold">التنبيهات</h3>
+                <button onClick={() => setIsNotificationsOpen(false)} className="text-white/50 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                {notifications.length > 0 ? (
+                  notifications.map((notif) => (
+                    <div key={notif.id} className="p-3 bg-white/5 rounded-2xl text-sm text-white/80">
+                      {notif.message}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-white/50 py-4">لا توجد تنبيهات جديدة</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <div className="relative">
           <button 
