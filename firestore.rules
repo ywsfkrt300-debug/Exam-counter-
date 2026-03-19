@@ -12,7 +12,7 @@ service cloud.firestore {
 
     // Notifications
     match /notifications/{notificationId} {
-      allow read: if true;
+      allow read, list: if true;
       allow create, update, delete: if isAdmin();
     }
 
