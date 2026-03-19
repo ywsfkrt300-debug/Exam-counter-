@@ -1117,7 +1117,7 @@ export default function App() {
     // Listen for exams
     const qExams = query(collection(db, 'exams'), orderBy('targetDate', 'asc'));
     const unsubscribeExams = onSnapshot(qExams, (snapshot) => {
-      const examsData = snapshot.docs.map(doc => doc.data() as Exam);
+      const examsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
       setExams(examsData);
     });
 
@@ -1152,7 +1152,7 @@ export default function App() {
 
     // Listen for subjects
     const unsubscribeSubjects = onSnapshot(collection(db, 'subjects'), (snapshot) => {
-      setSubjects(snapshot.docs.map(doc => doc.data() as Subject));
+      setSubjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject)));
     });
 
     // Listen for user progress
@@ -1168,7 +1168,7 @@ export default function App() {
 
     // Listen for schedules
     const unsubscribeSchedules = onSnapshot(query(collection(db, 'schedules'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setSchedules(snapshot.docs.map(doc => doc.data() as Schedule));
+      setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
     });
 
     return () => {
