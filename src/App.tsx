@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
-import { db, storage, auth } from './firebase';
+import { db, storage } from './firebase';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban } from 'lucide-react';
@@ -1139,33 +1138,7 @@ const PolicyPage = ({ title, content }: { title: string; content: string }) => (
   </motion.div>
 );
 
-const LoginScreen = ({ onLogin }: { onLogin: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-screen bg-zinc-950 text-white p-6 text-center">
-    <h1 className="text-4xl font-black mb-8">مرحباً بك في نظام إدارة الامتحانات</h1>
-    <button
-      onClick={onLogin}
-      className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-lg shadow-indigo-600/20"
-    >
-      تسجيل الدخول باستخدام جوجل
-    </button>
-  </div>
-);
-
 export default function App() {
-  const [user, setUser] = useState<any>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoadingAuth(false);
-    });
-    return unsubscribe;
-  }, []);
-
-  if (loadingAuth) return <div className="flex items-center justify-center h-screen bg-zinc-950 text-white">جاري التحقق...</div>;
-  if (!user) return <LoginScreen onLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} />;
-
   const [exams, setExams] = useState<Exam[]>([]);
   const [settings, setSettings] = useState<Settings>(() => {
     const cached = localStorage.getItem('appSettings');
@@ -1339,45 +1312,6 @@ export default function App() {
       setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
     });
 
-    return () => {
-      unsubscribeExams();
-      unsubscribeSettings();
-      unsubscribeSubjects();
-      unsubscribeSchedules();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const sId = sessionId;
-    const presenceRef = doc(db, 'presence', sId);
-
-    const updatePresence = async () => {
-      try {
-        await setDoc(presenceRef, {
-          userId: user.uid,
-          lastSeen: serverTimestamp(),
-          status: 'online'
-        });
-      } catch (e) {
-        console.error("Presence update failed", e);
-      }
-    };
-
-    updatePresence();
-    const heartbeat = setInterval(updatePresence, 30000); // Heartbeat every 30s
-
-    // Cleanup presence on unmount
-    const cleanup = async () => {
-      clearInterval(heartbeat);
-      try {
-        await deleteDoc(presenceRef);
-      } catch (e) {}
-    };
-
-    window.addEventListener('beforeunload', cleanup);
-
     // Listen for notifications
     const qNotifs = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(10));
     const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
@@ -1413,13 +1347,15 @@ export default function App() {
     });
 
     return () => {
-      window.removeEventListener('beforeunload', cleanup);
-      cleanup();
+      unsubscribeExams();
+      unsubscribeSettings();
+      unsubscribeSubjects();
+      unsubscribeSchedules();
       unsubscribeNotifs();
       unsubscribePresence();
       unsubscribeProgress();
     };
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (exams.length === 0) return;
