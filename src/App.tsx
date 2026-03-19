@@ -26,7 +26,7 @@ interface Settings {
   backgroundUrl?: string;
   theme?: string;
   maintenanceMode?: boolean;
-  overlayImageUrl?: string;
+  overlayImageUrls?: string[];
   developerName?: string;
   developerImageUrl?: string;
   loadingImageUrl?: string;
@@ -859,19 +859,46 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط الخلفية</label>
                       <input 
                         type="text"
-                        value={settings.backgroundUrl}
+                        value={settings.backgroundUrl || ''}
                         onChange={(e) => setSettings({ ...settings, backgroundUrl: e.target.value })}
                         className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط الصورة العلوية</label>
-                      <input 
-                        type="text"
-                        value={settings.overlayImageUrl}
-                        onChange={(e) => setSettings({ ...settings, overlayImageUrl: e.target.value })}
-                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
-                      />
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">روابط الصور العلوية</label>
+                      <div className="space-y-2">
+                        {(settings.overlayImageUrls || []).map((url, index) => (
+                          <div key={index} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={url}
+                              onChange={(e) => {
+                                const newUrls = [...(settings.overlayImageUrls || [])];
+                                newUrls[index] = e.target.value;
+                                setSettings({ ...settings, overlayImageUrls: newUrls });
+                              }}
+                              className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                            />
+                            <button
+                              onClick={() => {
+                                const newUrls = (settings.overlayImageUrls || []).filter((_, i) => i !== index);
+                                setSettings({ ...settings, overlayImageUrls: newUrls });
+                              }}
+                              className="p-4 bg-red-500/10 text-red-500 rounded-2xl"
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            setSettings({ ...settings, overlayImageUrls: [...(settings.overlayImageUrls || []), ''] });
+                          }}
+                          className="w-full p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl font-bold"
+                        >
+                          إضافة صورة علوية
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط صورة التحميل (دائرة التحميل)</label>
