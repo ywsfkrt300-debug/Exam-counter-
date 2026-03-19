@@ -76,6 +76,8 @@ const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'adm
   '/لوحة-التحكم': 'admin',
   '/تواصل-معنا': 'contact',
   '/سياسة-الخصوصية': 'privacy',
+  '/سياسة-الخصوصية/admin': 'admin',
+  '/سياسة-الخصوصية-admin': 'admin',
   '/شروط-الخدمة': 'terms',
   '/admin': 'admin'
 };
