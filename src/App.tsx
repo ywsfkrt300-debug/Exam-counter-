@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from './firebase';
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save } from 'lucide-react';
@@ -149,15 +149,6 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.email === "ywsfkrt300@gmail.com") {
-        setIsLoggedIn(true);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
     if (isLoggedIn) {
       fetchStats();
       fetchLogs();
@@ -185,15 +176,9 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password === '33454') {
-      try {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        setIsLoggedIn(true);
-        setError('');
-      } catch (err) {
-        console.error(err);
-        setError('فشل تسجيل الدخول عبر جوجل');
-      }
+      setIsLoggedIn(true);
+      setError('');
+      showToast('تم تسجيل الدخول بنجاح');
     } else {
       setError('كلمة المرور غير صحيحة');
     }
