@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from './firebase';
+import { db, storage, auth } from './firebase';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2 } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
@@ -26,7 +27,9 @@ interface Settings {
   backgroundUrl?: string;
   theme?: string;
   maintenanceMode?: boolean;
+  overlayImageUrl?: string;
   overlayImageUrls?: string[];
+  scrollingBannerText?: string;
   developerName?: string;
   developerImageUrl?: string;
   loadingImageUrl?: string;
@@ -92,6 +95,37 @@ const REVERSE_PAGE_MAP: { [key: string]: string } = {
   'terms': '/شروط-الخدمة'
 };
 
+const ImageUploadButton = ({ onUpload, label = "رفع صورة", uploading }: { onUpload: (file: File) => void, label?: string, uploading: boolean }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUpload(file);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input 
+        type="file" 
+        ref={fileInputRef}
+        className="hidden" 
+        onChange={handleFileChange}
+        accept="image/*"
+      />
+      <button 
+        onClick={() => fileInputRef.current?.click()}
+        className="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center gap-2 whitespace-nowrap"
+        disabled={uploading}
+      >
+        <Upload size={14} />
+        {uploading ? 'جاري الرفع...' : label}
+      </button>
+    </div>
+  );
+};
+
 const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void, presenceData: any[] }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
@@ -106,6 +140,22 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  const [confirm, setConfirm] = useState<{ message: string, onConfirm: () => void } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && user.email === "ywsfkrt300@gmail.com") {
+        setIsLoggedIn(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -135,8 +185,15 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password === '33454') {
-      setIsLoggedIn(true);
-      setError('');
+      try {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+        setIsLoggedIn(true);
+        setError('');
+      } catch (err) {
+        console.error(err);
+        setError('فشل تسجيل الدخول عبر جوجل');
+      }
     } else {
       setError('كلمة المرور غير صحيحة');
     }
@@ -181,8 +238,7 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (file: File, callback?: (url: string) => void) => {
     if (!file) return;
 
     setUploading(true);
@@ -190,10 +246,15 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
       const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
-      setUploadedUrl(url);
+      if (callback) {
+        callback(url);
+      } else {
+        setUploadedUrl(url);
+      }
+      showToast('تم الرفع بنجاح');
     } catch (err) {
-      console.error('Upload failed', err);
-      alert('فشل الرفع');
+      console.error(err);
+      showToast('فشل الرفع', 'error');
     } finally {
       setUploading(false);
     }
@@ -232,25 +293,37 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   };
 
   const deleteItem = async (col: string, id: string) => {
-    if (window.confirm('هل أنت متأكد من الحذف؟')) {
-      await deleteDoc(doc(db, col, id));
-    }
+    setConfirm({
+      message: 'هل أنت متأكد من الحذف؟',
+      onConfirm: async () => {
+        await deleteDoc(doc(db, col, id));
+        showToast('تم الحذف بنجاح');
+      }
+    });
   };
 
   const blockIp = async (ip: string) => {
-    if (window.confirm(`هل أنت متأكد من حظر IP: ${ip}؟`)) {
-      const newBlocked = [...(settings.blockedIPs || []), ip];
-      await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
-      setSettings({ ...settings, blockedIPs: newBlocked });
-    }
+    setConfirm({
+      message: `هل أنت متأكد من حظر IP: ${ip}؟`,
+      onConfirm: async () => {
+        const newBlocked = [...(settings.blockedIPs || []), ip];
+        await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
+        setSettings({ ...settings, blockedIPs: newBlocked });
+        showToast('تم الحظر بنجاح');
+      }
+    });
   };
 
   const unblockIp = async (ip: string) => {
-    if (window.confirm(`هل أنت متأكد من فك الحظر عن IP: ${ip}؟`)) {
-      const newBlocked = (settings.blockedIPs || []).filter(b => b !== ip);
-      await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
-      setSettings({ ...settings, blockedIPs: newBlocked });
-    }
+    setConfirm({
+      message: `هل أنت متأكد من فك الحظر عن IP: ${ip}؟`,
+      onConfirm: async () => {
+        const newBlocked = (settings.blockedIPs || []).filter(b => b !== ip);
+        await setDoc(doc(db, 'settings', 'config'), { ...settings, blockedIPs: newBlocked }, { merge: true });
+        setSettings({ ...settings, blockedIPs: newBlocked });
+        showToast('تم فك الحظر بنجاح');
+      }
+    });
   };
 
   if (!isLoggedIn) {
@@ -510,19 +583,54 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
             >
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الجداول</h2>
+              </div>
+
+              <div className="p-8 bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] space-y-6 shadow-2xl">
+                <h3 className="text-xl font-black">إضافة جدول جديد</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">عنوان الجدول</label>
+                    <input 
+                      type="text"
+                      id="new-schedule-title"
+                      placeholder="مثال: جدول امتحانات نصف السنة"
+                      className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط الملف (PDF أو صورة)</label>
+                      <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, (url) => {
+                        const input = document.getElementById('new-schedule-url') as HTMLInputElement;
+                        if (input) input.value = url;
+                      })} label="رفع ملف" />
+                    </div>
+                    <input 
+                      type="text"
+                      id="new-schedule-url"
+                      placeholder="أدخل الرابط أو ارفع ملفاً"
+                      className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
                 <button 
                   onClick={() => {
-                    const title = prompt('عنوان الجدول:');
-                    if (!title) return;
-                    const url = prompt('رابط الملف (PDF أو صورة):');
-                    if (!url) return;
-                    const fileType = url.toLowerCase().includes('.pdf') ? 'pdf' : 'image';
-                    addSchedule(title, url, fileType);
+                    const titleInput = document.getElementById('new-schedule-title') as HTMLInputElement;
+                    const urlInput = document.getElementById('new-schedule-url') as HTMLInputElement;
+                    if (titleInput && urlInput && titleInput.value && urlInput.value) {
+                      const fileType = urlInput.value.toLowerCase().includes('.pdf') ? 'pdf' : 'image';
+                      addSchedule(titleInput.value, urlInput.value, fileType);
+                      titleInput.value = '';
+                      urlInput.value = '';
+                      showToast('تم إضافة الجدول بنجاح');
+                    } else {
+                      showToast('يرجى ملء جميع الحقول', 'error');
+                    }
                   }}
-                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
-                  <Calendar size={20} />
-                  إضافة جدول
+                  <Plus size={20} />
+                  حفظ الجدول الجديد
                 </button>
               </div>
 
@@ -647,17 +755,56 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
             >
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-black tracking-tight">إدارة الامتحانات</h2>
+              </div>
+
+              <div className="p-8 bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] space-y-6 shadow-2xl">
+                <h3 className="text-xl font-black">إضافة امتحان جديد</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">اسم الامتحان</label>
+                    <input 
+                      type="text"
+                      id="new-exam-name"
+                      placeholder="مثال: امتحان اللغة العربية"
+                      className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">التاريخ والوقت</label>
+                    <input 
+                      type="datetime-local"
+                      id="new-exam-date"
+                      className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">الوصف</label>
+                    <textarea 
+                      id="new-exam-desc"
+                      placeholder="وصف بسيط للامتحان..."
+                      className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all text-sm h-24 resize-none"
+                    />
+                  </div>
+                </div>
                 <button 
                   onClick={() => {
-                    const name = prompt('اسم الامتحان:');
-                    const date = prompt('التاريخ (YYYY-MM-DD HH:mm):');
-                    const desc = prompt('الوصف (اختياري):');
-                    if (name && date) addExam(name, date, desc || '');
+                    const nameInput = document.getElementById('new-exam-name') as HTMLInputElement;
+                    const dateInput = document.getElementById('new-exam-date') as HTMLInputElement;
+                    const descInput = document.getElementById('new-exam-desc') as HTMLTextAreaElement;
+                    if (nameInput && dateInput && nameInput.value && dateInput.value) {
+                      addExam(nameInput.value, dateInput.value, descInput.value || '');
+                      nameInput.value = '';
+                      dateInput.value = '';
+                      descInput.value = '';
+                      showToast('تم إضافة الامتحان بنجاح');
+                    } else {
+                      showToast('يرجى ملء الاسم والتاريخ', 'error');
+                    }
                   }}
-                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
-                  <Clock size={20} />
-                  إضافة امتحان
+                  <Plus size={20} />
+                  حفظ الامتحان الجديد
                 </button>
               </div>
 
@@ -701,22 +848,11 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                   <p className="text-2xl font-black">اسحب الملفات هنا أو انقر للاختيار</p>
                   <p className="text-zinc-500 font-medium">يدعم الصور، PDF، والملفات النصية</p>
                 </div>
-                <input 
-                  type="file" 
-                  id="file-upload" 
-                  className="hidden" 
-                  onChange={handleFileUpload}
-                  disabled={uploading}
+                <ImageUploadButton 
+                  uploading={uploading} 
+                  onUpload={(file) => handleFileUpload(file)} 
+                  label="اختيار ملف للرفع"
                 />
-                <label 
-                  htmlFor="file-upload"
-                  className={cn(
-                    "px-12 py-4 bg-white text-black font-black rounded-2xl cursor-pointer hover:bg-zinc-200 transition-all shadow-xl",
-                    uploading && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  {uploading ? 'جاري الرفع...' : 'اختيار ملف'}
-                </label>
               </div>
 
               {uploadedUrl && (
@@ -888,7 +1024,24 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
               exit={{ opacity: 0, x: -20 }}
               className="max-w-4xl mx-auto space-y-8"
             >
-              <h2 className="text-3xl font-black tracking-tight">إعدادات النظام</h2>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-3xl font-black tracking-tight">إعدادات النظام</h2>
+                <button 
+                  onClick={async () => {
+                    try {
+                      await setDoc(doc(db, 'settings', 'config'), settings);
+                      localStorage.setItem('appSettings', JSON.stringify(settings));
+                      showToast('تم حفظ جميع الإعدادات بنجاح');
+                    } catch (err) {
+                      showToast('فشل حفظ الإعدادات', 'error');
+                    }
+                  }}
+                  className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                >
+                  <Save size={20} />
+                  حفظ التغييرات
+                </button>
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="p-8 bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] space-y-8 shadow-2xl">
@@ -900,52 +1053,121 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                   </h3>
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط الخلفية</label>
+                      <div className="flex items-center justify-between px-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط الخلفية</label>
+                        <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (url) => {
+                          const newSettings = { ...settings, backgroundUrl: url };
+                          setSettings(newSettings);
+                          await setDoc(doc(db, 'settings', 'config'), newSettings);
+                        })} />
+                      </div>
                       <input 
                         type="text"
                         value={settings.backgroundUrl || ''}
                         onChange={(e) => setSettings({ ...settings, backgroundUrl: e.target.value })}
                         className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
                       />
+                      {settings.backgroundUrl && (
+                        <div className="mt-2 relative aspect-video rounded-xl overflow-hidden border border-white/10">
+                          <img src={settings.backgroundUrl} alt="Background Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">روابط الصور العلوية</label>
+                      <div className="flex items-center justify-between px-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط الصورة العلوية الرئيسية</label>
+                        <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (url) => {
+                          const newSettings = { ...settings, overlayImageUrl: url };
+                          setSettings(newSettings);
+                          await setDoc(doc(db, 'settings', 'config'), newSettings);
+                        })} />
+                      </div>
+                      <input 
+                        type="text"
+                        value={settings.overlayImageUrl || ''}
+                        onChange={(e) => setSettings({ ...settings, overlayImageUrl: e.target.value })}
+                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                        placeholder="رابط الصورة التي تظهر فوق عداد الامتحان"
+                      />
+                      {settings.overlayImageUrl && (
+                        <div className="mt-2 relative h-32 rounded-xl overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+                          <img src={settings.overlayImageUrl} alt="Overlay Preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">نص البنر المتحرك</label>
+                      <input 
+                        type="text"
+                        value={settings.scrollingBannerText || ''}
+                        onChange={(e) => setSettings({ ...settings, scrollingBannerText: e.target.value })}
+                        className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-bold text-sm"
+                        placeholder="أدخل النص الذي سيظهر في البنر المتحرك أعلى الصفحة"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">روابط الصور العلوية الإضافية (سلايدر)</label>
+                        <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (url) => {
+                          const newUrls = [...(settings.overlayImageUrls || []), url];
+                          const newSettings = { ...settings, overlayImageUrls: newUrls };
+                          setSettings(newSettings);
+                          await setDoc(doc(db, 'settings', 'config'), newSettings);
+                        })} label="رفع وإضافة صورة" />
+                      </div>
                       <div className="space-y-2">
                         {(settings.overlayImageUrls || []).map((url, index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="text"
-                              value={url}
-                              onChange={(e) => {
+                          <div key={index} className="space-y-2">
+                            <div className="flex gap-2">
+                              <div className="flex-1 space-y-1">
+                                <input
+                                  type="text"
+                                  value={url}
+                                  onChange={(e) => {
+                                    const newUrls = [...(settings.overlayImageUrls || [])];
+                                    newUrls[index] = e.target.value;
+                                    setSettings({ ...settings, overlayImageUrls: newUrls });
+                                  }}
+                                  className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+                                />
+                              </div>
+                              <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (uploadedUrl) => {
                                 const newUrls = [...(settings.overlayImageUrls || [])];
-                                newUrls[index] = e.target.value;
-                                setSettings({ ...settings, overlayImageUrls: newUrls });
-                              }}
-                              className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
-                            />
-                            <button
-                              onClick={() => {
-                                const newUrls = (settings.overlayImageUrls || []).filter((_, i) => i !== index);
-                                setSettings({ ...settings, overlayImageUrls: newUrls });
-                              }}
-                              className="p-4 bg-red-500/10 text-red-500 rounded-2xl"
-                            >
-                              حذف
-                            </button>
+                                newUrls[index] = uploadedUrl;
+                                const newSettings = { ...settings, overlayImageUrls: newUrls };
+                                setSettings(newSettings);
+                                await setDoc(doc(db, 'settings', 'config'), newSettings);
+                              })} label="تغيير" />
+                              <button
+                                onClick={async () => {
+                                  const newUrls = (settings.overlayImageUrls || []).filter((_, i) => i !== index);
+                                  const newSettings = { ...settings, overlayImageUrls: newUrls };
+                                  setSettings(newSettings);
+                                  await setDoc(doc(db, 'settings', 'config'), newSettings);
+                                }}
+                                className="p-4 bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-500/20 transition-all"
+                              >
+                                <Trash2 size={20} />
+                              </button>
+                            </div>
+                            {url && (
+                              <div className="relative h-24 rounded-xl overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+                                <img src={url} alt={`Preview ${index + 1}`} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                              </div>
+                            )}
                           </div>
                         ))}
-                        <button
-                          onClick={() => {
-                            setSettings({ ...settings, overlayImageUrls: [...(settings.overlayImageUrls || []), ''] });
-                          }}
-                          className="w-full p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl font-bold"
-                        >
-                          إضافة صورة علوية
-                        </button>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط صورة التحميل (دائرة التحميل)</label>
+                      <div className="flex items-center justify-between px-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط صورة التحميل</label>
+                        <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (url) => {
+                          const newSettings = { ...settings, loadingImageUrl: url };
+                          setSettings(newSettings);
+                          await setDoc(doc(db, 'settings', 'config'), newSettings);
+                        })} />
+                      </div>
                       <input 
                         type="text"
                         value={settings.loadingImageUrl || ''}
@@ -953,6 +1175,11 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                         className="w-full p-4 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
                         placeholder="اتركه فارغاً لاستخدام دائرة التحميل الافتراضية"
                       />
+                      {settings.loadingImageUrl && (
+                        <div className="mt-2 relative h-24 w-24 rounded-xl overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+                          <img src={settings.loadingImageUrl} alt="Loading Preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -1001,7 +1228,14 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-2">رابط صورة المطور</label>
+                        <div className="flex items-center justify-between px-2">
+                          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط صورة المطور</label>
+                          <ImageUploadButton uploading={uploading} onUpload={(file) => handleFileUpload(file, async (url) => {
+                            const newSettings = { ...settings, developerImageUrl: url };
+                            setSettings(newSettings);
+                            await setDoc(doc(db, 'settings', 'config'), newSettings);
+                          })} />
+                        </div>
                         <input 
                           type="text"
                           value={settings.developerImageUrl}
@@ -1041,7 +1275,7 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                   <button 
                     onClick={async () => {
                       await setDoc(doc(db, 'settings', 'config'), settings);
-                      alert('تم حفظ الإعدادات بنجاح!');
+                      showToast('تم حفظ الإعدادات بنجاح!');
                     }}
                     className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-black text-lg transition-all shadow-xl shadow-emerald-500/20"
                   >
@@ -1049,6 +1283,65 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
                   </button>
                 </div>
               </div>
+
+              {/* Toast Notification */}
+              <AnimatePresence>
+                {toast && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 50 }}
+                    className={cn(
+                      "fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl z-[100] font-bold text-white flex items-center gap-3",
+                      toast.type === 'success' ? "bg-emerald-600" : "bg-red-600"
+                    )}
+                  >
+                    {toast.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                    {toast.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Confirmation Modal */}
+              <AnimatePresence>
+                {confirm && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      className="bg-zinc-900 border border-white/10 p-8 rounded-[2.5rem] max-w-sm w-full text-center space-y-6 shadow-2xl"
+                    >
+                      <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+                        <AlertCircle size={32} className="text-red-500" />
+                      </div>
+                      <p className="text-xl font-bold">{confirm.message}</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setConfirm(null)}
+                          className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all"
+                        >
+                          إلغاء
+                        </button>
+                        <button
+                          onClick={() => {
+                            confirm.onConfirm();
+                            setConfirm(null);
+                          }}
+                          className="flex-1 py-4 bg-red-600 hover:bg-red-500 rounded-2xl font-bold transition-all"
+                        >
+                          تأكيد
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1567,6 +1860,20 @@ export default function App() {
         backgroundPosition: 'center',
       }}
     >
+      {settings.scrollingBannerText && (
+        <div className="w-full bg-emerald-600/20 backdrop-blur-md border-b border-white/10 overflow-hidden py-2 relative z-[100]">
+          <motion.div
+            animate={{ x: ["100%", "-100%"] }}
+            transition={{ repeat: Infinity, duration: 25, ease: "linear" }}
+            className="whitespace-nowrap text-white font-black text-sm flex items-center gap-8"
+          >
+            <span>{settings.scrollingBannerText}</span>
+            <span>{settings.scrollingBannerText}</span>
+            <span>{settings.scrollingBannerText}</span>
+            <span>{settings.scrollingBannerText}</span>
+          </motion.div>
+        </div>
+      )}
       {settings.maintenanceMode && <MaintenanceOverlay />}
 
       {/* Overlay */}
@@ -1710,10 +2017,25 @@ export default function App() {
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl px-6 py-12">
         {/* Top Banner Images */}
-        {settings.overlayImageUrls && settings.overlayImageUrls.length > 0 && (
+        {(settings.overlayImageUrl || (settings.overlayImageUrls && settings.overlayImageUrls.length > 0)) && (
           <div className="mb-12 space-y-6">
-            {settings.overlayImageUrls.map((url, index) => (
-              url && (
+            {settings.overlayImageUrl && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl group relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <img 
+                  src={settings.overlayImageUrl} 
+                  alt="Primary Banner" 
+                  className="w-full h-auto object-cover max-h-[400px]"
+                  referrerPolicy="no-referrer"
+                />
+              </motion.div>
+            )}
+            {settings.overlayImageUrls && settings.overlayImageUrls.map((url, index) => (
+              url && url !== settings.overlayImageUrl && (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: -20 }}
@@ -2154,8 +2476,9 @@ export default function App() {
               </div>
             </motion.div>
           ) : (
-            <div key="exams-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {exams.map((exam, idx) => (
+            <div key="exams-grid" className="flex flex-col gap-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {exams.map((exam, idx) => (
                 <motion.div 
                   key={`grid-exam-${exam.id}-${idx}`}
                   initial={{ opacity: 0, y: 30 }}
@@ -2184,11 +2507,12 @@ export default function App() {
                   </div>
                 </motion.div>
               ))}
+              </div>
             </div>
           )
         )}
-        </AnimatePresence>
-      </div>
+      </AnimatePresence>
+    </div>
 
       <div className="absolute bottom-0 left-0 w-full z-20 p-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-t from-black/80 to-transparent backdrop-blur-[2px]">
         <div className="flex items-center gap-6 text-xs font-bold text-white/60">
