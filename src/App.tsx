@@ -80,7 +80,7 @@ const ImageUploadButton = ({ onUpload, label = "رفع صورة", uploading }: {
   );
 };
 
-const AdminDashboard = ({ onExit, presenceData }: { onExit: () => void, presenceData: any[] }) => {
+const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
   const { settings, setSettings, subjects, exams, schedules, showToast } = useApp();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
@@ -91,6 +91,7 @@ const AdminDashboard = ({ onExit, presenceData }: { onExit: () => void, presence
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [presenceData, setPresenceData] = useState<any[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [confirm, setConfirm] = useState<{ message: string, onConfirm: () => void } | null>(null);
@@ -102,7 +103,13 @@ const AdminDashboard = ({ onExit, presenceData }: { onExit: () => void, presence
       const unsubNotifs = onSnapshot(query(collection(db, 'notifications'), orderBy('timestamp', 'desc')), (snap) => {
         setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
-      return () => unsubNotifs();
+      const unsubPresence = onSnapshot(collection(db, 'presence'), (snap) => {
+        setPresenceData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      return () => {
+        unsubNotifs();
+        unsubPresence();
+      };
     }
   }, [isLoggedIn]);
 
@@ -1336,20 +1343,66 @@ const AdminDashboard = ({ onExit, presenceData }: { onExit: () => void, presence
   );
 };
 
-const CountdownBox = ({ value, label, color }: { value: number; label: string; color?: string }) => (
-  <motion.div 
-    whileHover={{ y: -5, scale: 1.02 }}
-    className="flex flex-col items-center gap-4 p-8 bg-white/5 backdrop-blur-xl rounded-[3rem] border border-white/10 hover:border-white/20 transition-all group/unit shadow-2xl"
-  >
-    <div className={cn(
-      "text-5xl md:text-7xl font-black bg-gradient-to-br bg-clip-text text-transparent drop-shadow-sm transition-all duration-500",
-      color || "from-white to-zinc-500"
-    )}>
-      {String(value).padStart(2, '0')}
+const CountdownBox = ({ value, label, color }: { value: number; label: string; color?: string }) => {
+  const formattedValue = String(value).padStart(2, '0');
+  
+  return (
+    <div className="flex flex-col items-center gap-4 group/unit">
+      <div className="relative h-32 w-28 md:h-48 md:w-40 [perspective:1000px] rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        
+        {/* Top Half */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 overflow-hidden bg-black/60 backdrop-blur-2xl rounded-t-[2rem] border-x border-t border-white/10">
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={value}
+              initial={{ rotateX: 90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              exit={{ rotateX: -90, opacity: 0 }}
+              transition={{ duration: 0.5, type: "spring", bounce: 0.2 }}
+              style={{ transformOrigin: "bottom", backfaceVisibility: "hidden" }}
+              className="absolute top-0 left-0 w-full h-[200%] flex items-center justify-center"
+            >
+              <div className={cn(
+                "text-6xl md:text-8xl font-black bg-gradient-to-br bg-clip-text text-transparent",
+                color || "from-white to-zinc-500"
+              )}>
+                {formattedValue}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          {/* Glossy overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+        </div>
+
+        {/* Bottom Half */}
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 overflow-hidden bg-black/60 backdrop-blur-2xl rounded-b-[2rem] border-x border-b border-white/10">
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={value}
+              initial={{ rotateX: -90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              exit={{ rotateX: 90, opacity: 0 }}
+              transition={{ duration: 0.5, type: "spring", bounce: 0.2 }}
+              style={{ transformOrigin: "top", backfaceVisibility: "hidden" }}
+              className="absolute bottom-0 left-0 w-full h-[200%] flex items-center justify-center"
+            >
+              <div className={cn(
+                "text-6xl md:text-8xl font-black bg-gradient-to-br bg-clip-text text-transparent",
+                color || "from-white to-zinc-500"
+              )}>
+                {formattedValue}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Center split line */}
+        <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-black/80 -translate-y-1/2 z-20 shadow-[0_1px_0_rgba(255,255,255,0.1)]" />
+      </div>
+      <span className="text-[10px] md:text-xs font-black text-zinc-500 uppercase tracking-[0.3em] group-hover/unit:text-white transition-colors">{label}</span>
     </div>
-    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] group-hover/unit:text-white transition-colors">{label}</span>
-  </motion.div>
-);
+  );
+};
 
 const MaintenanceOverlay = () => (
   <motion.div 
@@ -1495,8 +1548,7 @@ export default function App() {
     page, setPage,
     showToast,
     toggleFavorite,
-    connectionStatus,
-    userCount
+    connectionStatus
   } = useApp();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -1504,12 +1556,13 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
   const [sessionId] = useState(() => localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
   const [notification, setNotification] = useState<AppNotification | null>(null);
-  const [presenceData, setPresenceData] = useState<any[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [userIp, setUserIp] = useState<string>('');
+  const [userGov, setUserGov] = useState<string>('');
+  const [aboutStats, setAboutStats] = useState<{ count: number, govs: any[] }>({ count: 0, govs: [] });
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
@@ -1573,31 +1626,37 @@ export default function App() {
     localStorage.setItem('sessionId', sId);
     const presenceRef = doc(db, 'presence', sId);
 
+    let cachedIp = sessionStorage.getItem('userIp');
+    let cachedGov = sessionStorage.getItem('userGov');
+
     const updatePresence = async () => {
       try {
-        // Fetch IP and location info
-        let ip = 'Unknown';
-        let governorate = 'Unknown';
-        try {
-          // Try ipapi.co first
-          const res = await fetch('https://ipapi.co/json/').catch(() => null);
-          if (res && res.ok) {
-            const data = await res.json();
-            ip = data.ip || 'Unknown';
-            governorate = data.region || data.city || 'Unknown';
-          } else {
-            // Fallback 1: ipify for IP only
-            const resIp = await fetch('https://api.ipify.org?format=json').catch(() => null);
-            if (resIp && resIp.ok) {
-              const data = await resIp.json();
+        let ip = cachedIp || 'Unknown';
+        let governorate = cachedGov || 'Unknown';
+
+        if (!cachedIp) {
+          try {
+            const res = await fetch('https://ipapi.co/json/').catch(() => null);
+            if (res && res.ok) {
+              const data = await res.json();
               ip = data.ip || 'Unknown';
+              governorate = data.region || data.city || 'Unknown';
+            } else {
+              const resIp = await fetch('https://api.ipify.org?format=json').catch(() => null);
+              if (resIp && resIp.ok) {
+                const data = await resIp.json();
+                ip = data.ip || 'Unknown';
+              }
             }
-          }
-        } catch (e) {
-          // Silent fail for location fetch - not critical for app functionality
+            sessionStorage.setItem('userIp', ip);
+            sessionStorage.setItem('userGov', governorate);
+            cachedIp = ip;
+            cachedGov = governorate;
+          } catch (e) {}
         }
 
         setUserIp(ip);
+        setUserGov(governorate);
 
         await setDoc(presenceRef, { 
           id: sId, 
@@ -1611,11 +1670,10 @@ export default function App() {
     };
 
     updatePresence();
-    const heartbeat = setInterval(updatePresence, 30000); // Heartbeat every 30s
+    const heartbeat = setInterval(updatePresence, 300000); // Heartbeat every 5 minutes
 
     // Cleanup presence on unmount
     const cleanup = async () => {
-      clearInterval(heartbeat);
       try {
         await deleteDoc(presenceRef);
       } catch (e) {}
@@ -1633,15 +1691,33 @@ export default function App() {
       }
     });
 
-    const unsubPresence = onSnapshot(collection(db, 'presence'), (snap) => {
-      setPresenceData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
     return () => {
+      clearInterval(heartbeat);
+      window.removeEventListener('beforeunload', cleanup);
       unsubNotifs();
-      unsubPresence();
     };
-  }, [page, sessionId]);
+  }, [sessionId]);
+
+  // Fetch about stats when page is 'about'
+  useEffect(() => {
+    if (page === 'about') {
+      const fetchAboutStats = async () => {
+        try {
+          const presenceSnap = await getDocs(collection(db, 'presence'));
+          const stats: { [key: string]: number } = {};
+          presenceSnap.docs.forEach(doc => {
+            const gov = doc.data().governorate || 'غير معروف';
+            stats[gov] = (stats[gov] || 0) + 1;
+          });
+          const govs = Object.entries(stats).map(([name, value]) => ({ name, value }));
+          setAboutStats({ count: presenceSnap.size, govs });
+        } catch (e) {
+          console.error("Failed to fetch about stats", e);
+        }
+      };
+      fetchAboutStats();
+    }
+  }, [page]);
 
   useEffect(() => {
     if (exams.length === 0) return;
@@ -1724,15 +1800,6 @@ export default function App() {
     await setDoc(doc(db, 'progress', sessionId), newProgress);
   };
 
-  const getGovStats = () => {
-    const stats: { [key: string]: number } = {};
-    presenceData.forEach(p => {
-      const gov = p.governorate || 'غير معروف';
-      stats[gov] = (stats[gov] || 0) + 1;
-    });
-    return Object.entries(stats).map(([name, value]) => ({ name, value }));
-  };
-
   const currentExam = exams[currentIndex];
   const fontClass = settings.fontFamily ? `font-${settings.fontFamily.toLowerCase()}` : 'font-sans';
 
@@ -1785,7 +1852,6 @@ export default function App() {
 
   if (isAdminMode) {
     return <AdminDashboard 
-      presenceData={presenceData}
       onExit={() => {
         window.history.pushState({}, '', '/الرئيسية');
         setIsAdminMode(false);
@@ -2087,7 +2153,7 @@ export default function App() {
                 <div className="flex-1 min-h-[400px] w-full bg-black/20 rounded-[2.5rem] p-6 border border-white/5 relative group">
                   <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none" />
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getGovStats()} layout="vertical" margin={{ left: 20, right: 20 }}>
+                    <BarChart data={aboutStats.govs} layout="vertical" margin={{ left: 20, right: 20 }}>
                       <XAxis type="number" hide />
                       <YAxis 
                         dataKey="name" 
@@ -2112,7 +2178,7 @@ export default function App() {
                         cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }}
                       />
                       <Bar dataKey="value" radius={[0, 20, 20, 0]} barSize={24}>
-                        {getGovStats().map((entry, index) => (
+                        {aboutStats.govs.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${0.3 + (index * 0.15)})`} />
                         ))}
                       </Bar>
@@ -2121,8 +2187,8 @@ export default function App() {
                 </div>
                 <div className="mt-8 grid grid-cols-3 gap-4">
                   {[
-                    { label: 'المتصلين', value: userCount, icon: User },
-                    { label: 'المحافظات', value: getGovStats().length, icon: MapIcon },
+                    { label: 'المتصلين', value: aboutStats.count, icon: User },
+                    { label: 'المحافظات', value: aboutStats.govs.length, icon: MapIcon },
                     { label: 'التفاعل', value: 'عالي', icon: Bell }
                   ].map((stat, i) => (
                     <div key={i} className="text-center p-4 bg-white/5 rounded-2xl border border-white/5">
