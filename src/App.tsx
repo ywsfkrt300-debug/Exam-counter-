@@ -1,72 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit, getDocFromServer, getDocs, addDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from './firebase';
 import { signOut } from 'firebase/auth';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save, Megaphone } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useApp, Exam, Subject, Schedule, Settings, UserProgress } from './context/AppContext';
 
-// Utility for tailwind classes
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-interface Exam {
-  id: string;
-  name: string;
-  targetDate: string;
-  description?: string;
-}
-
-interface Settings {
-  backgroundUrl?: string;
-  theme?: string;
-  maintenanceMode?: boolean;
-  overlayImageUrl?: string;
-  overlayImageUrls?: string[];
-  scrollingBannerText?: string;
-  developerName?: string;
-  developerImageUrl?: string;
-  loadingImageUrl?: string;
-  facebookUrl?: string;
-  whatsappUrl?: string;
-  privacyPolicy?: string;
-  termsOfService?: string;
-  fontFamily?: string;
-  siteName?: string;
-  blockedIPs?: string[];
-}
-
-interface Notification {
+interface AppNotification {
   id: string;
   message: string;
   timestamp: any;
 }
 
-interface Subject {
-  id: string;
-  name: string;
-  units: string[];
-}
-
-interface Schedule {
-  id: string;
-  title: string;
-  imageUrl: string;
-  fileType?: 'image' | 'pdf';
-  timestamp: any;
-}
-
-interface UserProgress {
-  sessionId: string;
-  subjectId?: string;
-  completedUnits: string[];
-  studyHours: { [key: string]: number };
+// Utility for tailwind classes
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }
 
 const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'admin' | 'contact' | 'privacy' | 'terms' } = {
@@ -126,7 +80,8 @@ const ImageUploadButton = ({ onUpload, label = "رفع صورة", uploading }: {
   );
 };
 
-const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExit: () => void, settings: Settings, setSettings: (s: Settings) => void, presenceData: any[] }) => {
+const AdminDashboard = ({ onExit, presenceData }: { onExit: () => void, presenceData: any[] }) => {
+  const { settings, setSettings, subjects, exams, schedules, showToast } = useApp();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -135,41 +90,19 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
   const [activeTab, setActiveTab] = useState('stats');
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState('');
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [confirm, setConfirm] = useState<{ message: string, onConfirm: () => void } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   useEffect(() => {
     if (isLoggedIn) {
       fetchStats();
       fetchLogs();
-      const unsubSubjects = onSnapshot(collection(db, 'subjects'), (snap) => {
-        setSubjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject)));
-      });
-      const unsubExams = onSnapshot(collection(db, 'exams'), (snap) => {
-        setExams(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam)));
-      });
-      const unsubSchedules = onSnapshot(collection(db, 'schedules'), (snap) => {
-        setSchedules(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
-      });
       const unsubNotifs = onSnapshot(query(collection(db, 'notifications'), orderBy('timestamp', 'desc')), (snap) => {
-        setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
+        setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
-      return () => {
-        unsubSubjects();
-        unsubExams();
-        unsubSchedules();
-        unsubNotifs();
-      };
+      return () => unsubNotifs();
     }
   }, [isLoggedIn]);
 
@@ -404,6 +337,7 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
             { id: 'exams', label: 'الامتحانات', icon: Clock },
             { id: 'schedules', label: 'الجداول', icon: Calendar },
             { id: 'notifications', label: 'التنبيهات', icon: Bell },
+            { id: 'ads', label: 'الإعلانات', icon: Megaphone },
             { id: 'uploads', label: 'رفع الملفات', icon: Download },
             { id: 'logs', label: 'السجلات', icon: FileText },
             { id: 'security', label: 'الأمان والزوار', icon: Shield },
@@ -1001,6 +935,73 @@ const AdminDashboard = ({ onExit, settings, setSettings, presenceData }: { onExi
             </motion.div>
           )}
 
+          {activeTab === 'ads' && (
+            <motion.div 
+              key="ads"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-3xl font-black tracking-tight">إدارة الإعلانات</h2>
+                <button 
+                  onClick={() => {
+                    const text = prompt('نص الإعلان:');
+                    if (text) {
+                      const link = prompt('رابط الإعلان (اختياري):');
+                      const newAd = { id: Date.now().toString(), text, link, active: true };
+                      const newAds = [...(settings.ads || []), newAd];
+                      setSettings({ ...settings, ads: newAds });
+                      setDoc(doc(db, 'settings', 'config'), { ads: newAds }, { merge: true });
+                      showToast('تم إضافة الإعلان بنجاح');
+                    }
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                >
+                  <Megaphone size={20} />
+                  إضافة إعلان
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {(settings.ads || []).map((ad: any) => (
+                  <div key={ad.id} className="p-6 bg-zinc-900 border border-white/10 rounded-[2rem] space-y-4 shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <p className="font-bold text-lg">{ad.text}</p>
+                        {ad.link && <p className="text-xs text-zinc-500 font-mono truncate max-w-[200px]">{ad.link}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            const newAds = settings.ads?.map((a: any) => a.id === ad.id ? { ...a, active: !a.active } : a);
+                            setSettings({ ...settings, ads: newAds });
+                            setDoc(doc(db, 'settings', 'config'), { ads: newAds }, { merge: true });
+                          }}
+                          className={cn("p-2 rounded-xl transition-all", ad.active ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 bg-zinc-500/10")}
+                        >
+                          {ad.active ? <CheckCircle size={16} /> : <Ban size={16} />}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const newAds = settings.ads?.filter((a: any) => a.id !== ad.id);
+                            setSettings({ ...settings, ads: newAds });
+                            setDoc(doc(db, 'settings', 'config'), { ads: newAds }, { merge: true });
+                            showToast('تم حذف الإعلان');
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'settings' && (
             <motion.div 
               key="settings"
@@ -1440,6 +1441,30 @@ const ContactUs = ({ settings }: { settings: Settings }) => (
   </motion.div>
 );
 
+const MarqueeAds = ({ ads }: { ads: any[] }) => {
+  const activeAds = ads?.filter(ad => ad.active) || [];
+  if (activeAds.length === 0) return null;
+
+  return (
+    <div className="w-full bg-emerald-500/10 border-y border-emerald-500/20 py-2 overflow-hidden mb-8">
+      <div className="flex whitespace-nowrap animate-marquee">
+        {activeAds.map((ad, i) => (
+          <div key={i} className="flex items-center gap-4 px-8">
+            <Megaphone size={16} className="text-emerald-400" />
+            <span className="text-sm font-bold text-emerald-100">
+              {ad.link ? (
+                <a href={ad.link} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {ad.text}
+                </a>
+              ) : ad.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const PolicyPage = ({ title, content }: { title: string; content: string }) => (
   <motion.div
     initial={{ opacity: 0, scale: 0.95 }}
@@ -1461,35 +1486,29 @@ const PolicyPage = ({ title, content }: { title: string; content: string }) => (
 );
 
 export default function App() {
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [settings, setSettings] = useState<Settings>(() => {
-    const cached = localStorage.getItem('appSettings');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {}
-    }
-    return { backgroundUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=1920', theme: 'glass' };
-  });
+  const { 
+    settings, setSettings, 
+    exams, subjects, schedules, 
+    userProgress, setUserProgress, 
+    isAppLoading, 
+    isAdminMode, setIsAdminMode,
+    page, setPage,
+    showToast,
+    toggleFavorite,
+    connectionStatus,
+    userCount
+  } = useApp();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
-  const [isAdminMode, setIsAdminMode] = useState(PAGE_MAP[decodeURIComponent(window.location.pathname)] === 'admin');
-  const [page, setPage] = useState<'home' | 'about' | 'study' | 'schedules' | 'contact' | 'privacy' | 'terms'>(
-    (PAGE_MAP[decodeURIComponent(window.location.pathname)] as any) || 'home'
-  );
   const [sessionId] = useState(() => localStorage.getItem('sessionId') || Math.random().toString(36).substring(7));
-  const [notification, setNotification] = useState<Notification | null>(null);
-  const [userCount, setUserCount] = useState(0);
+  const [notification, setNotification] = useState<AppNotification | null>(null);
   const [presenceData, setPresenceData] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error'>('connected');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [userIp, setUserIp] = useState<string>('');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
@@ -1497,7 +1516,6 @@ export default function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(() => {
     return localStorage.getItem('privacyAccepted') !== 'true';
   });
-  const [isAppLoading, setIsAppLoading] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -1507,10 +1525,6 @@ export default function App() {
       document.documentElement.classList.remove('light-mode');
     }
   }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
-  }, [settings]);
 
   const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.5, soundEnabled });
   const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.5, soundEnabled });
@@ -1609,75 +1623,25 @@ export default function App() {
 
     window.addEventListener('beforeunload', cleanup);
 
-    // Listen for exams
-    const qExams = query(collection(db, 'exams'), orderBy('targetDate', 'asc'));
-    const unsubscribeExams = onSnapshot(qExams, (snapshot) => {
-      const examsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
-      setExams(examsData);
-    });
-
-    // Listen for settings
-    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'config'), (snapshot) => {
-      if (snapshot.exists()) {
-        setSettings(snapshot.data() as Settings);
-      }
-      setIsAppLoading(false);
-    });
-
-    // Listen for subjects
-    const unsubscribeSubjects = onSnapshot(collection(db, 'subjects'), (snapshot) => {
-      setSubjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subject)));
-    });
-
-    // Listen for schedules
-    const unsubscribeSchedules = onSnapshot(query(collection(db, 'schedules'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
-    });
-
-    // Listen for notifications
-    const qNotifs = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(10));
-    const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
-      const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+    const unsubNotifs = onSnapshot(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
+      const notifs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification));
       setNotifications(notifs);
       if (notifs.length > 0) {
         setNotification(notifs[0]);
-        
-        // Auto-hide notification after 10 seconds
-        const timer = setTimeout(() => {
-          setNotification(null);
-        }, 10000);
-        
+        const timer = setTimeout(() => setNotification(null), 10000);
         return () => clearTimeout(timer);
       }
     });
 
-    // Listen for user count
-    const unsubscribePresence = onSnapshot(collection(db, 'presence'), (snapshot) => {
-      setUserCount(snapshot.size);
-      setPresenceData(snapshot.docs.map(doc => doc.data()));
-    });
-
-    // Listen for user progress
-    const unsubscribeProgress = onSnapshot(doc(db, 'progress', sId), (snapshot) => {
-      if (snapshot.exists()) {
-        setUserProgress(snapshot.data() as UserProgress);
-      } else {
-        const initial: UserProgress = { sessionId: sId, completedUnits: [], studyHours: {} };
-        setDoc(doc(db, 'progress', sId), initial);
-        setUserProgress(initial);
-      }
+    const unsubPresence = onSnapshot(collection(db, 'presence'), (snap) => {
+      setPresenceData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
-      unsubscribeExams();
-      unsubscribeSettings();
-      unsubscribeSubjects();
-      unsubscribeSchedules();
-      unsubscribeNotifs();
-      unsubscribePresence();
-      unsubscribeProgress();
+      unsubNotifs();
+      unsubPresence();
     };
-  }, []);
+  }, [page, sessionId]);
 
   useEffect(() => {
     if (exams.length === 0) return;
@@ -1821,8 +1785,6 @@ export default function App() {
 
   if (isAdminMode) {
     return <AdminDashboard 
-      settings={settings} 
-      setSettings={setSettings} 
       presenceData={presenceData}
       onExit={() => {
         window.history.pushState({}, '', '/الرئيسية');
@@ -2039,6 +2001,23 @@ export default function App() {
             ))}
           </div>
         )}
+
+        <MarqueeAds ads={settings.ads || []} />
+
+        <div className="mb-8">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col gap-2"
+          >
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight">
+              {userProgress && userProgress.completedUnits.length > 0 ? 'مرحباً بعودتك!' : 'أهلاً بك في نظام الامتحانات'}
+            </h1>
+            <p className="text-zinc-400 font-bold">
+              {userIp ? `نحن نراك من ${userIp} - نتمنى لك دراسة ممتعة` : 'نتمنى لك دراسة ممتعة وموفقة'}
+            </p>
+          </motion.div>
+        </div>
         
         <AnimatePresence mode="wait">
           {page === 'contact' ? (

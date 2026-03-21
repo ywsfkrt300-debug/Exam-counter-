@@ -65,3 +65,12 @@
 .light-mode .text-white\/20 { color: rgba(0,0,0,0.2) !important; }
 .light-mode .text-white\/10 { color: rgba(0,0,0,0.1) !important; }
 .light-mode .text-white\/5 { color: rgba(0,0,0,0.05) !important; }
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
