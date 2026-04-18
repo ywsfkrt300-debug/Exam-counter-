@@ -26,6 +26,13 @@ export interface Schedule {
   fileType?: string;
 }
 
+export interface ImportantFile {
+  id: string;
+  title: string;
+  url: string;
+  timestamp: any;
+}
+
 export interface Ad {
   id: string;
   text: string;
@@ -51,6 +58,7 @@ export interface Settings {
   ads?: Ad[];
   facebookUrl?: string;
   whatsappUrl?: string;
+  hiddenPages?: { [key: string]: boolean };
 }
 
 export interface UserProgress {
@@ -67,6 +75,7 @@ interface AppContextType {
   exams: Exam[];
   subjects: Subject[];
   schedules: Schedule[];
+  importantFiles: ImportantFile[];
   userProgress: UserProgress;
   setUserProgress: React.Dispatch<React.SetStateAction<UserProgress>>;
   isAppLoading: boolean;
@@ -91,6 +100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [importantFiles, setImportantFiles] = useState<ImportantFile[]>([]);
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [page, setPage] = useState('home');
@@ -131,6 +141,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSchedules(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Schedule)));
     });
 
+    const unsubImportantFiles = onSnapshot(query(collection(db, 'importantFiles'), orderBy('timestamp', 'desc')), (snap) => {
+      setImportantFiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportantFile)));
+    });
+
     const unsubPresence = onSnapshot(collection(db, 'presence'), (snap) => {
       setUserCount(snap.size);
     });
@@ -140,6 +154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubSettings();
       unsubSubjects();
       unsubSchedules();
+      unsubImportantFiles();
       unsubPresence();
     };
   }, []);
@@ -164,7 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       settings, setSettings,
-      exams, subjects, schedules,
+      exams, subjects, schedules, importantFiles,
       userProgress, setUserProgress,
       isAppLoading,
       isAdminMode, setIsAdminMode,

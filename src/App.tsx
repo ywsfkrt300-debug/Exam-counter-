@@ -28,7 +28,7 @@ const PAGE_MAP: { [key: string]: 'home' | 'about' | 'study' | 'schedules' | 'adm
   '/الرئيسية': 'home',
   '/عن-الموقع': 'about',
   '/الدراسة': 'study',
-  '/الجداول': 'schedules',
+  '/الملفات-الهامة': 'schedules',
   '/لوحة-التحكم': 'admin',
   '/تواصل-معنا': 'contact',
   '/سياسة-الخصوصية': 'privacy',
@@ -42,7 +42,7 @@ const REVERSE_PAGE_MAP: { [key: string]: string } = {
   'home': '/الرئيسية',
   'about': '/عن-الموقع',
   'study': '/الدراسة',
-  'schedules': '/الجداول',
+  'schedules': '/الملفات-الهامة',
   'admin': '/لوحة-التحكم',
   'contact': '/تواصل-معنا',
   'privacy': '/سياسة-الخصوصية',
@@ -89,6 +89,8 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
   const [logs, setLogs] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('stats');
   const [uploading, setUploading] = useState(false);
+  const [fileTitle, setFileTitle] = useState('');
+  const [fileUrl, setFileUrl] = useState('');
   const [uploadedUrl, setUploadedUrl] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [presenceData, setPresenceData] = useState<any[]>([]);
@@ -207,9 +209,9 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
     }
   };
 
-  const addSchedule = async (title: string, imageUrl: string, fileType: 'image' | 'pdf' = 'image') => {
+  const addImportantFile = async (title: string, url: string) => {
     const id = Date.now().toString();
-    await setDoc(doc(db, 'schedules', id), { title, imageUrl, fileType, timestamp: serverTimestamp() });
+    await setDoc(doc(db, 'importantFiles', id), { title, url, timestamp: serverTimestamp() });
   };
 
   const sendNotification = async (message: string) => {
@@ -217,12 +219,15 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
     await setDoc(doc(db, 'notifications', id), { message, timestamp: serverTimestamp() });
   };
 
-  const deleteItem = async (col: string, id: string) => {
+  const deletePresence = async () => {
     setConfirm({
-      message: 'هل أنت متأكد من الحذف؟',
+      message: 'هل أنت متأكد من حذف جميع سجلات الزوار؟',
       onConfirm: async () => {
-        await deleteDoc(doc(db, col, id));
-        showToast('تم الحذف بنجاح');
+        const snap = await getDocs(collection(db, 'presence'));
+        for (const doc of snap.docs) {
+          await deleteDoc(doc.ref);
+        }
+        showToast('تم حذف جميع سجلات الزوار');
       }
     });
   };
@@ -870,6 +875,12 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
                       <User size={20} className="text-emerald-500" />
                       الزوار النشطون
                     </h3>
+                    <button 
+                      onClick={deletePresence}
+                      className="text-xs bg-red-500/20 text-red-500 px-3 py-1 rounded-full font-bold hover:bg-red-500 hover:text-white transition-all"
+                    >
+                      حذف السجلات
+                    </button>
                     <span className="bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-full text-sm font-bold">
                       {presenceData.length} متصل
                     </span>
@@ -1045,6 +1056,21 @@ const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
                     المظهر العام
                   </h3>
                   <div className="space-y-6">
+                    <div className="space-y-4">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest px-2">إخفاء الصفحات</label>
+                       {(['study', 'schedules', 'about', 'contact', 'privacy', 'terms'] as const).map(page => (
+                         <div key={page} className="flex items-center justify-between p-4 bg-black/40 border border-white/10 rounded-2xl">
+                           <span className="font-bold">{page === 'study' ? 'الدراسة' : page === 'schedules' ? 'الملفات الهامة' : page === 'about' ? 'من نحن' : page === 'contact' ? 'تواصل معنا' : page === 'privacy' ? 'سياسة الخصوصية' : 'شروط الخدمة'}</span>
+                           <button 
+                             onClick={() => setSettings({ ...settings, hiddenPages: { ...(settings.hiddenPages || {}), [page]: !(settings.hiddenPages || {})[page] } })}
+                             className={cn("w-12 h-6 rounded-full transition-all relative p-1", (settings.hiddenPages || {})[page] ? "bg-red-500" : "bg-zinc-700")}
+                           >
+                            <div className={cn("w-4 h-4 bg-white rounded-full transition-all", (settings.hiddenPages || {})[page] ? "translate-x-6" : "translate-x-0")} />
+                           </button>
+                         </div>
+                       ))}
+                    </div>
+                    
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-2">
                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">رابط الخلفية</label>
@@ -2513,25 +2539,25 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-                  {[
-                    { label: 'ابدأ الدراسة', icon: BookOpen, page: 'study', color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20' },
-                    { label: 'عرض الجداول', icon: Calendar, page: 'schedules', color: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' },
-                    { label: 'من نحن', icon: User, page: 'about', color: 'bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20' }
-                  ].map((btn, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handlePageChange(btn.page as any)}
-                      className={cn(
-                        "flex items-center justify-center gap-4 p-8 rounded-[2.5rem] text-white font-black text-xl transition-all shadow-2xl hover:-translate-y-2 group",
-                        btn.color
-                      )}
-                    >
-                      <btn.icon size={28} className="group-hover:scale-110 transition-transform" />
-                      <span>{btn.label}</span>
-                    </button>
-                  ))}
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                    {[
+                      { label: 'ابدأ الدراسة', icon: BookOpen, page: 'study', color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20' },
+                      { label: 'عرض الملفات الهامة', icon: Calendar, page: 'schedules', color: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' },
+                      { label: 'من نحن', icon: User, page: 'about', color: 'bg-zinc-800 hover:bg-zinc-700 shadow-zinc-800/20' }
+                    ].filter(btn => !(settings.hiddenPages || {})[btn.page]).map((btn, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handlePageChange(btn.page as any)}
+                        className={cn(
+                          "flex items-center justify-center gap-4 p-8 rounded-[2.5rem] text-white font-black text-xl transition-all shadow-2xl hover:-translate-y-2 group",
+                          btn.color
+                        )}
+                      >
+                        <btn.icon size={28} className="group-hover:scale-110 transition-transform" />
+                        <span>{btn.label}</span>
+                      </button>
+                    ))}
+                  </div>
               </div>
             </motion.div>
           ) : (
