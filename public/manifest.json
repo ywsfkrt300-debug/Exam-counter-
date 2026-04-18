@@ -1,0 +1,16 @@
+{
+  "name": "Exam Countdown Timer",
+  "short_name": "Exam Timer",
+  "description": "A beautiful, real-time countdown timer for exams, controlled via a Telegram Bot.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

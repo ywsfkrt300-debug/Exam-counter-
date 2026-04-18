@@ -5,7 +5,7 @@ import { db, storage, auth } from './firebase';
 import { signOut } from 'firebase/auth';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save, Megaphone } from 'lucide-react';
+import { Clock, Calendar, ChevronRight, ChevronLeft, LayoutGrid, Maximize2, Bell, ShieldAlert, User, Home, Map as MapIcon, CheckCircle2, BookOpen, Timer, Download, FileText, Volume2, VolumeX, Phone, Facebook, MessageCircle, ShieldCheck, Lock, FileWarning, Mail, X, ArrowRight, Shield, Menu, Sun, Moon, Ban, Trash2, Plus, CheckCircle, AlertCircle, Upload, Save, Megaphone, Printer, Share2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import useSound from 'use-sound';
 import { clsx, type ClassValue } from 'clsx';
@@ -2433,11 +2433,40 @@ export default function App() {
               </div>
 
               {timeLeft ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 w-full max-w-5xl">
-                  <CountdownBox value={timeLeft.days || 0} label="أيام" color="from-emerald-400 to-emerald-600" />
-                  <CountdownBox value={timeLeft.hours || 0} label="ساعات" color="from-indigo-400 to-indigo-600" />
-                  <CountdownBox value={timeLeft.minutes || 0} label="دقائق" color="from-purple-400 to-purple-600" />
-                  <CountdownBox value={timeLeft.seconds || 0} label="ثواني" color="from-pink-400 to-pink-600" />
+                <div className="w-full flex flex-col items-center gap-8">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 w-full max-w-5xl">
+                    <CountdownBox value={timeLeft.days || 0} label="أيام" color="from-emerald-400 to-emerald-600" />
+                    <CountdownBox value={timeLeft.hours || 0} label="ساعات" color="from-indigo-400 to-indigo-600" />
+                    <CountdownBox value={timeLeft.minutes || 0} label="دقائق" color="from-purple-400 to-purple-600" />
+                    <CountdownBox value={timeLeft.seconds || 0} label="ثواني" color="from-pink-400 to-pink-600" />
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => window.print()}
+                      className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center gap-2 transition-all"
+                    >
+                      <Printer size={18} /> طباعة
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const messages = [
+                          "باقي القليل، استعد للنجاح! 🚀",
+                          "العداد لا يتوقف، هل أنت جاهز؟ 🔥",
+                          "كل لحظة تقربك من هدفك. بالتوفيق! 🎯",
+                          "استغل الوقت، فالتميز ينتظرك. ✨"
+                        ];
+                        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                        navigator.share({
+                          title: 'العد التنازلي للامتحان',
+                          text: `${randomMsg}\nالزمن المتبقي لـ ${currentExam.name}: ${timeLeft.days} يوم، ${timeLeft.hours} ساعة، ${timeLeft.minutes} دقيقة.`,
+                          url: window.location.href
+                        }).catch(() => {});
+                      }}
+                      className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center gap-2 transition-all"
+                    >
+                      <Share2 size={18} /> مشاركة
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <motion.div 
