@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import multer from "multer";
+import cors from "cors";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, query, orderBy, limit } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -22,6 +23,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 const storage = getStorage(firebaseApp);
 
+app.use(cors());
 app.use(express.json());
 
 // Helper to upload file to Firebase Storage
@@ -35,6 +37,26 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Public API: Countdown Data
+  app.get("/api/countdown", async (req, res) => {
+    try {
+      const examsSnap = await getDocs(collection(db, "exams"));
+      const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+
+      const targetExam = exams.find((e) => e.name.includes("الشهادة الإعدادية") || e.name.includes("التاسع")) 
+                         || exams[0];
+
+      res.json({
+        success: true,
+        now: new Date().toISOString(),
+        exam: targetExam || null,
+        allExams: exams
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
   });
 
   // Admin Login
