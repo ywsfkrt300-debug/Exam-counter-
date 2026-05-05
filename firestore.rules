@@ -14,16 +14,28 @@ service cloud.firestore {
 
     // Public Data
     match /subjects/{subjectId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
+    }
+    match /subjects {
+      allow read, write: if true;
     }
     match /exams/{examId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
+    }
+    match /exams {
+      allow read, write: if true;
     }
     match /schedules/{scheduleId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
+    }
+    match /schedules {
+      allow read, write: if true;
+    }
+    match /importantFiles/{fileId} {
+      allow read, write: if true;
+    }
+    match /importantFiles {
+      allow read, write: if true;
     }
     match /settings/{configId} {
       allow read: if true;
